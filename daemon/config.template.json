@@ -1,0 +1,116 @@
+{
+  "python_path": "python",
+  "worker_script": "..\\workers\\mt5_worker.py",
+  "heartbeat_interval_sec": 10,
+  "terminals": [
+    {
+      "id": "The5ers",
+      "terminal_path": "C:\\Program Files\\Five Percent Online MetaTrader 5\\terminal64.exe",
+      "port": 5501,
+      "auto_connect": true,
+      "enabled": true,
+      "sort_order": 0,
+      "symbol_map": {}
+    },
+    {
+      "id": "DEMO",
+      "terminal_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+      "port": 5503,
+      "auto_connect": true,
+      "enabled": false,
+      "sort_order": 1,
+      "symbol_map": {}
+    },
+    {
+      "id": "Vers_copy1",
+      "terminal_path": "D:\\TraderTerminalThe5ers\\EURUSD\\terminal64.exe",
+      "port": 5504,
+      "auto_connect": true,
+      "enabled": true,
+      "sort_order": 0,
+      "symbol_map": {}
+    },
+    {
+      "id": "Vers_copy2",
+      "terminal_path": "D:\\TraderTerminalThe5ers\\XAUUSD\\terminal64.exe",
+      "port": 5505,
+      "auto_connect": true,
+      "enabled": true,
+      "sort_order": 0,
+      "symbol_map": {}
+    }
+  ],
+  "telegram_bot_token": " ",
+  "telegram_chat_id": " ",
+  "telegram_heartbeat_hours": 1,
+  "news_calendar_file": "news_calendar.json",
+  "news_calendar_url": "",
+  "strategy_dir": "..\\..\\..\\..\\strategies",
+  "runner_script": "..\\..\\..\\..\\strategies\\runner.py",
+  "strategy_base_port": 5600,
+  "scheduler_interval_sec": 10,
+  "strategies": [
+    {
+      "strategy": "bb_mr_v2",
+      "terminal": "The5ers",
+      "magic": 100,
+      "auto_start": false
+    },
+    {
+      "strategy": "test_strategy",
+      "terminal": "DEMO",
+      "magic": 1100,
+      "auto_start": false
+    },
+    {
+      "strategy": "compression_breakout",
+      "terminal": "The5ers",
+      "magic": 5100,
+      "auto_start": false
+    },
+    {
+      "strategy": "pairs_zscore",
+      "terminal": "The5ers",
+      "magic": 4100,
+      "auto_start": false
+    },
+    {
+      "strategy": "signal_test_strategy",
+      "terminal": "DEMO",
+      "magic": 2100,
+      "auto_start": false
+    },
+    {
+      "strategy": "vwap",
+      "terminal": "The5ers",
+      "magic": 3100,
+      "auto_start": false
+    },
+    {
+      "strategy": "momentum_cont",
+      "terminal": "The5ers",
+      "magic": 9100,
+      "auto_start": false
+    },
+    {
+      "strategy": "fx_intraday",
+      "terminal": "The5ers",
+      "magic": 6100,
+      "auto_start": false
+    },
+    {
+      "strategy": "mtf_pullback",
+      "terminal": "The5ers",
+      "magic": 7100,
+      "auto_start": false
+    }
+  ],
+  "dashboard_enabled": true,
+  "dashboard_port": 8080,
+  "dashboard_host": "localhost",
+  "dashboard_wwwroot": "wwwroot",
+  "virtual_slippage_points": 0.5,
+  "default_commission_per_lot": 0,
+  "cost_model_path": "cost_model_v2.json",
+  "bars_history_db": "bars_history.db"
+}

@@ -1,0 +1,15 @@
+{
+  "_comment": "Add this entry to daemon config.json → strategies[] array",
+  "_risk_config": {
+    "RiskPerTrade": "0.55% (from Step 6 FTMO optimization)",
+    "MaxDailyLossPercent": "0.825% (1.5 × 0.55%, hard R-cap)",
+    "DailyLossMode": "hard (clip all positions at threshold)"
+  },
+  "strategy_entry": {
+    "strategy": "momentum_cont",
+    "terminal": "The5ers",
+    "magic": 6100,
+    "r_cap": 1.5,
+    "auto_start": false
+  }
+}

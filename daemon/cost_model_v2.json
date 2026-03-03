@@ -1,0 +1,953 @@
+{
+  "_comment": "Cost model v2. Spread/slippage = market consensus \u00d7 1.32. Widened = individual per-instrument threshold based on real news/session spike data. Sources: IC Markets, Pepperstone, FTMO, BrokerChooser (100+ brokers), BrokersView, Myfxbook. Audit: 2026-02-28.",
+  "units": {
+    "forex": "pips",
+    "index": "points",
+    "metal": "usd",
+    "energy": "usd",
+    "crypto": "usd"
+  },
+  "symbols": {
+    "EURUSD": {
+      "asset_class": "forex",
+      "spread": 1.1,
+      "slippage": 0.4,
+      "spread_open_widened": 3.0
+    },
+    "GBPUSD": {
+      "asset_class": "forex",
+      "spread": 1.3,
+      "slippage": 0.4,
+      "spread_open_widened": 3.5
+    },
+    "AUDUSD": {
+      "asset_class": "forex",
+      "spread": 1.2,
+      "slippage": 0.4,
+      "spread_open_widened": 3.0
+    },
+    "NZDUSD": {
+      "asset_class": "forex",
+      "spread": 1.7,
+      "slippage": 0.5,
+      "spread_open_widened": 4.0
+    },
+    "USDCAD": {
+      "asset_class": "forex",
+      "spread": 1.5,
+      "slippage": 0.4,
+      "spread_open_widened": 3.5
+    },
+    "USDCHF": {
+      "asset_class": "forex",
+      "spread": 1.5,
+      "slippage": 0.4,
+      "spread_open_widened": 3.5
+    },
+    "USDJPY": {
+      "asset_class": "forex",
+      "spread": 1.2,
+      "slippage": 0.4,
+      "spread_open_widened": 3.0
+    },
+    "EURGBP": {
+      "asset_class": "forex",
+      "spread": 1.6,
+      "slippage": 0.5,
+      "spread_open_widened": 4.0
+    },
+    "EURJPY": {
+      "asset_class": "forex",
+      "spread": 1.8,
+      "slippage": 0.7,
+      "spread_open_widened": 5.0
+    },
+    "AUDJPY": {
+      "asset_class": "forex",
+      "spread": 2.0,
+      "slippage": 0.7,
+      "spread_open_widened": 5.0
+    },
+    "EURCHF": {
+      "asset_class": "forex",
+      "spread": 2.0,
+      "slippage": 0.7,
+      "spread_open_widened": 5.0
+    },
+    "CADJPY": {
+      "asset_class": "forex",
+      "spread": 2.0,
+      "slippage": 0.7,
+      "spread_open_widened": 5.0
+    },
+    "NZDJPY": {
+      "asset_class": "forex",
+      "spread": 2.1,
+      "slippage": 0.7,
+      "spread_open_widened": 5.5
+    },
+    "CHFJPY": {
+      "asset_class": "forex",
+      "spread": 2.4,
+      "slippage": 0.7,
+      "spread_open_widened": 5.5
+    },
+    "EURAUD": {
+      "asset_class": "forex",
+      "spread": 2.4,
+      "slippage": 0.8,
+      "spread_open_widened": 5.5
+    },
+    "EURCAD": {
+      "asset_class": "forex",
+      "spread": 2.4,
+      "slippage": 0.8,
+      "spread_open_widened": 5.5
+    },
+    "AUDCAD": {
+      "asset_class": "forex",
+      "spread": 2.2,
+      "slippage": 0.7,
+      "spread_open_widened": 5.0
+    },
+    "AUDNZD": {
+      "asset_class": "forex",
+      "spread": 2.4,
+      "slippage": 0.7,
+      "spread_open_widened": 5.5
+    },
+    "AUDCHF": {
+      "asset_class": "forex",
+      "spread": 2.0,
+      "slippage": 0.7,
+      "spread_open_widened": 5.0
+    },
+    "CADCHF": {
+      "asset_class": "forex",
+      "spread": 2.1,
+      "slippage": 0.7,
+      "spread_open_widened": 5.0
+    },
+    "NZDCAD": {
+      "asset_class": "forex",
+      "spread": 2.6,
+      "slippage": 0.8,
+      "spread_open_widened": 6.0
+    },
+    "NZDCHF": {
+      "asset_class": "forex",
+      "spread": 2.4,
+      "slippage": 0.8,
+      "spread_open_widened": 5.5
+    },
+    "GBPCHF": {
+      "asset_class": "forex",
+      "spread": 2.6,
+      "slippage": 0.8,
+      "spread_open_widened": 6.0
+    },
+    "GBPJPY": {
+      "asset_class": "forex",
+      "spread": 2.6,
+      "slippage": 0.9,
+      "spread_open_widened": 8.0
+    },
+    "GBPAUD": {
+      "asset_class": "forex",
+      "spread": 2.9,
+      "slippage": 1.1,
+      "spread_open_widened": 8.0
+    },
+    "GBPCAD": {
+      "asset_class": "forex",
+      "spread": 2.9,
+      "slippage": 1.1,
+      "spread_open_widened": 7.5
+    },
+    "GBPNZD": {
+      "asset_class": "forex",
+      "spread": 4.0,
+      "slippage": 1.3,
+      "spread_open_widened": 9.0
+    },
+    "EURNZD": {
+      "asset_class": "forex",
+      "spread": 3.2,
+      "slippage": 1.1,
+      "spread_open_widened": 7.5
+    },
+    "SP500": {
+      "asset_class": "index",
+      "spread": 0.7,
+      "slippage": 0.7,
+      "spread_open_widened": 3.0
+    },
+    "NAS100": {
+      "asset_class": "index",
+      "spread": 2.2,
+      "slippage": 2.0,
+      "spread_open_widened": 6.0
+    },
+    "US30": {
+      "asset_class": "index",
+      "spread": 2.4,
+      "slippage": 2.6,
+      "spread_open_widened": 8.0
+    },
+    "DE40": {
+      "asset_class": "index",
+      "spread": 1.7,
+      "slippage": 1.3,
+      "spread_open_widened": 4.0
+    },
+    "UK100": {
+      "asset_class": "index",
+      "spread": 2.6,
+      "slippage": 2.0,
+      "spread_open_widened": 5.5
+    },
+    "JP225": {
+      "asset_class": "index",
+      "spread": 11,
+      "slippage": 5,
+      "spread_open_widened": 18
+    },
+    "XAUUSD": {
+      "asset_class": "metal",
+      "spread": 0.33,
+      "slippage": 0.2,
+      "spread_open_widened": 1.5
+    },
+    "XAGUSD": {
+      "asset_class": "metal",
+      "spread": 0.03,
+      "slippage": 0.01,
+      "spread_open_widened": 0.08
+    },
+    "XTIUSD": {
+      "asset_class": "energy",
+      "spread": 0.07,
+      "slippage": 0.04,
+      "spread_open_widened": 0.12
+    },
+    "XBRUSD": {
+      "asset_class": "energy",
+      "spread": 0.07,
+      "slippage": 0.04,
+      "spread_open_widened": 0.12
+    },
+    "XNGUSD": {
+      "asset_class": "energy",
+      "spread": 0.01,
+      "slippage": 0.01,
+      "spread_open_widened": 0.03
+    },
+    "BTCUSD": {
+      "asset_class": "crypto",
+      "spread": 13.2,
+      "slippage": 7.9,
+      "spread_open_widened": 25.0
+    },
+    "ETHUSD": {
+      "asset_class": "crypto",
+      "spread": 4.0,
+      "slippage": 2.6,
+      "spread_open_widened": 8.0
+    }
+  },
+  "_aliases": {
+    "EURUSD": {
+      "base": "EURUSD",
+      "known_variants": [
+        "EUR.USD",
+        "EUR/USD",
+        "EUR/USD_ecn",
+        "EURGBP_0s",
+        "EURUSD",
+        "EURUSD!",
+        "EURUSD#",
+        "EURUSD'",
+        "EURUSD+",
+        "EURUSD-5",
+        "EURUSD-g",
+        "EURUSD-m",
+        "EURUSD-sb",
+        "EURUSD.",
+        "EURUSD..",
+        "EURUSD.ECN",
+        "EURUSD.G",
+        "EURUSD.SBe",
+        "EURUSD.a",
+        "EURUSD.c",
+        "EURUSD.cfx",
+        "EURUSD.ecn",
+        "EURUSD.fix",
+        "EURUSD.i",
+        "EURUSD.m",
+        "EURUSD.p",
+        "EURUSD.pro",
+        "EURUSD.r",
+        "EURUSD.stp",
+        "EURUSD.z",
+        "EURUSD@",
+        "EURUSD_i",
+        "EURUSDb",
+        "EURUSDc",
+        "EURUSDcheck",
+        "EURUSDecn",
+        "EURUSDf",
+        "EURUSDh",
+        "EURUSDi",
+        "EURUSDm",
+        "EURUSDme",
+        "EURUSDmicro",
+        "EURUSDpro",
+        "EURUSDt",
+        "EURUSDx",
+        "EURUSDzero"
+      ],
+      "suffix_pattern": "account_type",
+      "notes": "Most varied naming. All suffixes are account-type markers from broker/LP"
+    },
+    "GBPUSD": {
+      "base": "GBPUSD",
+      "follows_pattern": "EURUSD"
+    },
+    "AUDUSD": {
+      "base": "AUDUSD",
+      "follows_pattern": "EURUSD"
+    },
+    "NZDUSD": {
+      "base": "NZDUSD",
+      "follows_pattern": "EURUSD"
+    },
+    "USDCAD": {
+      "base": "USDCAD",
+      "follows_pattern": "EURUSD"
+    },
+    "USDCHF": {
+      "base": "USDCHF",
+      "follows_pattern": "EURUSD"
+    },
+    "USDJPY": {
+      "base": "USDJPY",
+      "follows_pattern": "EURUSD"
+    },
+    "EURGBP": {
+      "base": "EURGBP",
+      "follows_pattern": "EURUSD"
+    },
+    "EURJPY": {
+      "base": "EURJPY",
+      "follows_pattern": "EURUSD"
+    },
+    "AUDJPY": {
+      "base": "AUDJPY",
+      "follows_pattern": "EURUSD"
+    },
+    "EURCHF": {
+      "base": "EURCHF",
+      "follows_pattern": "EURUSD"
+    },
+    "CADJPY": {
+      "base": "CADJPY",
+      "follows_pattern": "EURUSD"
+    },
+    "NZDJPY": {
+      "base": "NZDJPY",
+      "follows_pattern": "EURUSD"
+    },
+    "CHFJPY": {
+      "base": "CHFJPY",
+      "follows_pattern": "EURUSD"
+    },
+    "EURAUD": {
+      "base": "EURAUD",
+      "follows_pattern": "EURUSD"
+    },
+    "EURCAD": {
+      "base": "EURCAD",
+      "follows_pattern": "EURUSD"
+    },
+    "AUDCAD": {
+      "base": "AUDCAD",
+      "follows_pattern": "EURUSD"
+    },
+    "AUDNZD": {
+      "base": "AUDNZD",
+      "follows_pattern": "EURUSD"
+    },
+    "AUDCHF": {
+      "base": "AUDCHF",
+      "follows_pattern": "EURUSD"
+    },
+    "CADCHF": {
+      "base": "CADCHF",
+      "follows_pattern": "EURUSD"
+    },
+    "NZDCAD": {
+      "base": "NZDCAD",
+      "follows_pattern": "EURUSD"
+    },
+    "NZDCHF": {
+      "base": "NZDCHF",
+      "follows_pattern": "EURUSD"
+    },
+    "GBPCHF": {
+      "base": "GBPCHF",
+      "follows_pattern": "EURUSD"
+    },
+    "GBPJPY": {
+      "base": "GBPJPY",
+      "follows_pattern": "EURUSD"
+    },
+    "GBPAUD": {
+      "base": "GBPAUD",
+      "follows_pattern": "EURUSD"
+    },
+    "GBPCAD": {
+      "base": "GBPCAD",
+      "follows_pattern": "EURUSD"
+    },
+    "GBPNZD": {
+      "base": "GBPNZD",
+      "follows_pattern": "EURUSD"
+    },
+    "EURNZD": {
+      "base": "EURNZD",
+      "follows_pattern": "EURUSD"
+    },
+    "SP500": {
+      "base": "SP500",
+      "known_variants": [
+        "US500",
+        "SPX500",
+        "SPX500USD",
+        "USA500",
+        "S&P500",
+        "SP500",
+        "US500Cash",
+        "US500.cash",
+        "SP500m",
+        "US500m",
+        "#SP500",
+        "#US500",
+        ".US500",
+        "US500_x100",
+        "SPX500USD-4",
+        "SPX500USD-2",
+        "_SP500",
+        "SPC5",
+        "SPXm",
+        "SPX.f",
+        "SP500.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "US500",
+        "Pepperstone": "US500",
+        "Exness": "US500",
+        "XM": "US500",
+        "FP Markets": "US500",
+        "OANDA": "SPX500USD",
+        "FTMO": "US500",
+        "FundedNext": "SPX500",
+        "Octa": "SPX500",
+        "AvaTrade": "S&P500",
+        "RoboForex": "US500",
+        "HFM": "US500",
+        "Tickmill": "SPX500",
+        "AMP Global": "SPC5",
+        "TradingView": "SPX500USD (FX), ES1! (futures)",
+        "cTrader": "US500",
+        "PipsPlatform": "SP500"
+      }
+    },
+    "NAS100": {
+      "base": "NAS100",
+      "known_variants": [
+        "NAS100",
+        "USTEC",
+        "US100",
+        "NDX100",
+        "TECH100",
+        "NASDAQ100",
+        "NAS100m",
+        "USTECm",
+        "US100Cash",
+        "US100.cash",
+        "#NAS100",
+        "#USTEC",
+        ".USTEC",
+        "USTEC_x100",
+        "NDX",
+        "NQ",
+        "USTECH",
+        "NAS100.cash",
+        "NAS100.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "NAS100",
+        "Pepperstone": "NAS100",
+        "Exness": "USTEC",
+        "XM": "US100",
+        "FP Markets": "NAS100",
+        "OANDA": "NAS100USD",
+        "FTMO": "USTEC",
+        "FundedNext": "NDX100",
+        "Octa": "NAS100",
+        "AvaTrade": "NASDAQ100",
+        "RoboForex": "NAS100",
+        "HFM": "NAS100m",
+        "Tickmill": "USTEC",
+        "TradingView": "NAS100 (FX)",
+        "cTrader": "NAS100",
+        "PipsPlatform": "NAS100"
+      }
+    },
+    "US30": {
+      "base": "US30",
+      "known_variants": [
+        "US30",
+        "DJ30",
+        "DOW30",
+        "DOWJONES",
+        "US30Cash",
+        "US30.cash",
+        "US30m",
+        "DJ30m",
+        "#US30",
+        "#DJ30",
+        ".US30",
+        "US30_x100",
+        "DJI",
+        "WS30",
+        "WS30m",
+        "WS30.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "US30",
+        "Pepperstone": "US30",
+        "Exness": "US30",
+        "XM": "US30",
+        "FP Markets": "US30",
+        "OANDA": "US30USD",
+        "FTMO": "US30",
+        "FundedNext": "US30",
+        "Octa": "US30",
+        "AvaTrade": "DOW30",
+        "RoboForex": "US30",
+        "HFM": "US30m",
+        "IG": "Wall Street",
+        "AMP Global": "DJI",
+        "TradingView": "US30 (FX), YM1! (futures)",
+        "cTrader": "US30",
+        "PipsPlatform": "WS30"
+      },
+      "notes": "PipsPlatform uses WS30 (Wall Street 30). AvaTrade uses DOW30. IG uses 'Wall Street'. Most others: US30"
+    },
+    "DE40": {
+      "base": "DE40",
+      "known_variants": [
+        "DE40",
+        "GER40",
+        "GER30",
+        "DAX40",
+        "DAX30",
+        "DE30",
+        "DE40Cash",
+        "GER40Cash",
+        "GER40m",
+        "DE40m",
+        "#DE40",
+        "#GER40",
+        ".DE40",
+        "GER40.cash",
+        "DAX30.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "DE40",
+        "Pepperstone": "GER40",
+        "Exness": "DE30",
+        "XM": "GER40",
+        "FP Markets": "GER40",
+        "OANDA": "DE40EUR",
+        "FTMO": "GER40",
+        "FundedNext": "GER30",
+        "Octa": "GER40",
+        "AvaTrade": "DAX30",
+        "RoboForex": "DE40",
+        "TradingView": "GER40 (FX)",
+        "cTrader": "Germany40",
+        "PipsPlatform": "DAX30"
+      },
+      "notes": "GER30\u2192GER40 transition (2021 when DAX expanded to 40 members). Some brokers still use GER30/DE30"
+    },
+    "UK100": {
+      "base": "UK100",
+      "known_variants": [
+        "UK100",
+        "FTSE100",
+        "UK100Cash",
+        "UK100.cash",
+        "UK100m",
+        "#UK100",
+        ".UK100",
+        "UK100.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "UK100",
+        "Pepperstone": "UK100",
+        "Exness": "UK100",
+        "XM": "UK100",
+        "FP Markets": "UK100",
+        "OANDA": "UK100GBP",
+        "FTMO": "UK100",
+        "FundedNext": "UK100",
+        "Octa": "UK100",
+        "AvaTrade": "FTSE100",
+        "TradingView": "UK100 (FX)",
+        "cTrader": "UK100",
+        "PipsPlatform": "UK100"
+      }
+    },
+    "JP225": {
+      "base": "JP225",
+      "known_variants": [
+        "JP225",
+        "JPN225",
+        "NIKKEI225",
+        "NI225",
+        "JP225Cash",
+        "JP225m",
+        "JPN225m",
+        "#JP225",
+        ".JP225",
+        "JP225.cash",
+        "JPN225.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "JP225",
+        "Pepperstone": "JP225",
+        "Exness": "JP225",
+        "XM": "JP225",
+        "FP Markets": "JP225",
+        "OANDA": "JP225USD",
+        "FTMO": "JP225",
+        "FundedNext": "JP225",
+        "Octa": "JPN225",
+        "AvaTrade": "NIKKEI225",
+        "TradingView": "JP225 (FX)",
+        "cTrader": "Japan225",
+        "PipsPlatform": "JPN225"
+      }
+    },
+    "XAUUSD": {
+      "base": "XAUUSD",
+      "known_variants": [
+        "XAUUSD",
+        "GOLD",
+        "GOLDm",
+        "GOLDmicro",
+        "GOLD.",
+        "XAUUSDm",
+        "XAUUSDpro",
+        "XAUUSDecn",
+        "XAUUSDb",
+        "XAUUSD.r",
+        "XAUUSD.ecn",
+        "XAUUSD.stp",
+        "XAUUSD.m",
+        "#GOLD",
+        "GOLD_m",
+        "GOLD.lts",
+        "XAUUSD.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "XAUUSD",
+        "Pepperstone": "XAUUSD",
+        "Exness": "XAUUSDm (std), XAUUSD (pro)",
+        "XM": "GOLD",
+        "FP Markets": "XAUUSD",
+        "OANDA": "XAUUSD",
+        "FTMO": "XAUUSD",
+        "FundedNext": "XAUUSD",
+        "Octa": "XAUUSD",
+        "AvaTrade": "GOLD",
+        "RoboForex": "XAUUSDe",
+        "HFM": "XAUUSDm",
+        "Tickmill": "XAUUSD",
+        "AMarkets": "XAUUSDb (ECN)",
+        "TradingView": "XAUUSD",
+        "cTrader": "XAUUSD",
+        "PipsPlatform": "XAUUSD.fix"
+      },
+      "notes": "GOLD vs XAUUSD is the #1 mismatch in copy trading. XM/AvaTrade use GOLD, most others XAUUSD. PipsPlatform uses .fix suffix on all asset classes"
+    },
+    "XAGUSD": {
+      "base": "XAGUSD",
+      "known_variants": [
+        "XAGUSD",
+        "SILVER",
+        "SILVERm",
+        "XAGUSDm",
+        "XAGUSDpro",
+        "XAGUSD.r",
+        "XAGUSD.ecn",
+        "#SILVER",
+        "XAGUSD.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "XAGUSD",
+        "XM": "SILVER",
+        "AvaTrade": "SILVER",
+        "FTMO": "XAGUSD",
+        "FundedNext": "XAGUSD",
+        "most others": "XAGUSD",
+        "PipsPlatform": "XAGUSD.fix"
+      }
+    },
+    "XTIUSD": {
+      "base": "XTIUSD",
+      "known_variants": [
+        "XTIUSD",
+        "USOUSD",
+        "USOIL",
+        "WTI",
+        "WTIUSD",
+        "CL",
+        "OIL",
+        "OILm",
+        "CRUDE",
+        "CLCash",
+        "USOILCash",
+        "USO",
+        "XTIUSD.Daily",
+        "CrudeOIL",
+        "OILWti",
+        "USOil.cash",
+        "USOIL.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "XTIUSD",
+        "Pepperstone": "XTIUSD",
+        "Exness": "USOIL",
+        "XM": "OIL / OILCash",
+        "FP Markets": "XTIUSD",
+        "OANDA": "WTICOUSD",
+        "FTMO": "XTIUSD",
+        "FundedNext": "USOUSD",
+        "Octa": "XTIUSD",
+        "AvaTrade": "CRUDE_OIL",
+        "MonetaMarkets": "USOUSD",
+        "TradingView": "USOIL (FX), CL1! (futures)",
+        "cTrader": "XTIUSD",
+        "PipsPlatform": "USOIL"
+      },
+      "notes": "Extremely varied. XTIUSD, USOUSD, USOIL, OIL, WTI \u2014 all the same WTI crude"
+    },
+    "XBRUSD": {
+      "base": "XBRUSD",
+      "known_variants": [
+        "XBRUSD",
+        "UKOUSD",
+        "UKOIL",
+        "BRENT",
+        "BRN",
+        "XBRUSD.Daily",
+        "BrentOil",
+        "OILBrent",
+        "UKOil.cash",
+        "UKOIL.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "XBRUSD",
+        "Pepperstone": "XBRUSD",
+        "Exness": "UKOIL",
+        "XM": "OILMn / BRENTCash",
+        "OANDA": "BCOUSD",
+        "FTMO": "XBRUSD",
+        "FundedNext": "UKOUSD",
+        "Octa": "XBRUSD",
+        "TradingView": "UKOIL (FX), BZ1! (futures)",
+        "cTrader": "XBRUSD",
+        "PipsPlatform": "UKOIL"
+      }
+    },
+    "XNGUSD": {
+      "base": "XNGUSD",
+      "known_variants": [
+        "XNGUSD",
+        "NATGAS",
+        "NGAS",
+        "NGASm",
+        "NATURALGAS",
+        "NG",
+        "NATGASCash",
+        "XNGUSD.Daily",
+        "XNGUSD.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "XNGUSD",
+        "XM": "NGAS / NGASCash",
+        "Exness": "XNGUSD",
+        "FTMO": "XNGUSD",
+        "AvaTrade": "NATURAL_GAS",
+        "TradingView": "NATGAS (FX), NG1! (futures)",
+        "PipsPlatform": "XNGUSD.fix (assumed)"
+      }
+    },
+    "BTCUSD": {
+      "base": "BTCUSD",
+      "known_variants": [
+        "BTCUSD",
+        "BTC/USD",
+        "BITCOIN",
+        "BTCUSDm",
+        "BTC",
+        "BTCUSD.lts",
+        "BTCUSDc",
+        "#BTCUSD",
+        "XBTUSD",
+        "BTCUSD.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "BTCUSD",
+        "Pepperstone": "BTCUSD",
+        "Exness": "BTCUSDm",
+        "XM": "BTCUSD",
+        "FTMO": "BTCUSD",
+        "FundedNext": "BTCUSD",
+        "Bitmex": "XBTUSD",
+        "TradingView": "BTCUSD / BTCUSDT",
+        "cTrader": "BTCUSD",
+        "PipsPlatform": "BTCUSD.fix"
+      },
+      "notes": "Bitmex uses XBTUSD (ISO 4217 standard). Most CFD brokers: BTCUSD"
+    },
+    "ETHUSD": {
+      "base": "ETHUSD",
+      "known_variants": [
+        "ETHUSD",
+        "ETH/USD",
+        "ETHEREUM",
+        "ETHUSDm",
+        "ETHUSDc",
+        "#ETHUSD",
+        "ETHUSD.fix"
+      ],
+      "broker_map": {
+        "IC Markets": "ETHUSD",
+        "FTMO": "ETHUSD",
+        "FundedNext": "ETHUSD",
+        "TradingView": "ETHUSD / ETHUSDT",
+        "cTrader": "ETHUSD",
+        "PipsPlatform": "ETHUSD.fix"
+      }
+    }
+  },
+  "_suffix_patterns": {
+    "_comment": "Broker suffix/prefix conventions. Strip these to get canonical symbol name.",
+    "account_type_suffixes": {
+      "m": "Mini/Micro account (Exness, HFM, etc.)",
+      "micro": "Micro account",
+      "pro": "Pro/Professional account",
+      "ecn": "ECN account",
+      "b": "ECN account (AMarkets)",
+      "c": "cTrader/Classic account",
+      "i": "Islamic/Swap-free",
+      "t": "Unknown LP marker",
+      "f": "Float/Fixed spread",
+      "h": "Hedging account",
+      "x": "Extended hours",
+      "zero": "Zero spread account (Exness)",
+      "me": "MetaTrader-specific",
+      "check": "Test/verification symbol"
+    },
+    "dot_suffixes": {
+      ".r": "Raw spread",
+      ".m": "Mini",
+      ".c": "cTrader / Classic",
+      ".ecn": "ECN",
+      ".ECN": "ECN (case variant)",
+      ".stp": "STP execution",
+      ".G": "Global entity",
+      ".SBe": "Spread-betting",
+      ".cfx": "CFD exchange",
+      ".i": "Islamic",
+      ".z": "Zero spread",
+      ".a": "Unknown",
+      ".p": "Pro",
+      ".pro": "Professional",
+      ".lts": "Long-term swap",
+      ".cash": "Cash/Spot (vs futures)",
+      ".Daily": "Daily expiry (energy)",
+      ".fix": "Fixed spread / fixed pricing (PipsPlatform \u2014 applies to FX, metals, energy, crypto)"
+    },
+    "special_chars": {
+      "#": "Some brokers prefix CFDs/stocks",
+      "!": "Rare LP marker",
+      "+": "Rare LP marker",
+      "'": "Rare LP marker",
+      "@": "Rare LP marker",
+      "_": "Separator or suffix start",
+      "-": "Suffix separator (e.g. -5, -m, -sb, -g)"
+    },
+    "strip_algorithm": "regex: symbol.replace(/[.#!+@'_-].*$/, '').replace(/(m|micro|pro|ecn|b|zero|c|i|t|f|h|x|me|check)$/i, '')"
+  },
+  "_extra_indices_not_in_model": {
+    "_comment": "Indices available at some brokers but NOT in our cost model (no trading strategy for them)",
+    "CAC40": {
+      "description": "France 40 Index",
+      "brokers": [
+        "PipsPlatform: CAC40",
+        "IC Markets: FRA40",
+        "Exness: FR40",
+        "FundedNext: FRA40"
+      ]
+    },
+    "ESP35": {
+      "description": "Spain IBEX 35 Index",
+      "brokers": [
+        "PipsPlatform: ESP35",
+        "IC Markets: ES35",
+        "Exness: not available"
+      ]
+    },
+    "ESX50": {
+      "description": "Euro Stoxx 50 Index",
+      "brokers": [
+        "PipsPlatform: ESX50",
+        "IC Markets: STOXX50",
+        "Exness: STOXX50",
+        "FundedNext: EUSTX50"
+      ]
+    },
+    "SMI20": {
+      "description": "Switzerland 20 Index",
+      "brokers": [
+        "PipsPlatform: SMI20"
+      ]
+    },
+    "AUS200": {
+      "description": "Australia 200 Index",
+      "brokers": [
+        "IC Markets: AUS200",
+        "FundedNext: AUS200",
+        "Exness: AUS200"
+      ]
+    },
+    "HK50": {
+      "description": "Hang Seng 50",
+      "brokers": [
+        "Exness: HK50",
+        "FundedNext: HK50"
+      ]
+    },
+    "US2000": {
+      "description": "Russell 2000",
+      "brokers": [
+        "FundedNext: US2000"
+      ]
+    }
+  }
+}

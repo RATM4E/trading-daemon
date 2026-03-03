@@ -1,0 +1,57 @@
+{
+  "_comment": "Cost model v1 — flat cost per symbol. Units vary by asset class. Used by BacktestExecutor.",
+  "units": {
+    "forex":  "pips",
+    "index":  "points",
+    "metal":  "usd",
+    "energy": "usd",
+    "crypto": "usd"
+  },
+  "symbols": {
+    "EURUSD":  { "asset_class": "forex",  "spread": 1.1,  "slippage": 0.6,  "spread_open_widened": 2.0  },
+    "GBPUSD":  { "asset_class": "forex",  "spread": 1.2,  "slippage": 0.6,  "spread_open_widened": 2.2  },
+    "AUDUSD":  { "asset_class": "forex",  "spread": 1.0,  "slippage": 0.5,  "spread_open_widened": 1.8  },
+    "NZDUSD":  { "asset_class": "forex",  "spread": 1.3,  "slippage": 0.7,  "spread_open_widened": 2.4  },
+    "USDCAD":  { "asset_class": "forex",  "spread": 1.3,  "slippage": 0.7,  "spread_open_widened": 2.4  },
+    "USDCHF":  { "asset_class": "forex",  "spread": 1.2,  "slippage": 0.6,  "spread_open_widened": 2.2  },
+    "USDJPY":  { "asset_class": "forex",  "spread": 1.1,  "slippage": 0.6,  "spread_open_widened": 2.0  },
+    "EURGBP":  { "asset_class": "forex",  "spread": 1.2,  "slippage": 0.6,  "spread_open_widened": 2.2  },
+    "EURJPY":  { "asset_class": "forex",  "spread": 1.5,  "slippage": 0.8,  "spread_open_widened": 2.8  },
+    "GBPJPY":  { "asset_class": "forex",  "spread": 2.2,  "slippage": 1.4,  "spread_open_widened": 4.0  },
+    "EURAUD":  { "asset_class": "forex",  "spread": 1.8,  "slippage": 1.0,  "spread_open_widened": 3.2  },
+    "GBPAUD":  { "asset_class": "forex",  "spread": 2.5,  "slippage": 1.5,  "spread_open_widened": 4.5  },
+    "GBPNZD":  { "asset_class": "forex",  "spread": 3.0,  "slippage": 1.8,  "spread_open_widened": 5.5  },
+    "GBPCAD":  { "asset_class": "forex",  "spread": 2.5,  "slippage": 1.5,  "spread_open_widened": 4.5  },
+    "AUDCAD":  { "asset_class": "forex",  "spread": 1.8,  "slippage": 1.0,  "spread_open_widened": 3.2  },
+    "AUDNZD":  { "asset_class": "forex",  "spread": 1.8,  "slippage": 1.0,  "spread_open_widened": 3.2  },
+    "NZDCAD":  { "asset_class": "forex",  "spread": 2.0,  "slippage": 1.2,  "spread_open_widened": 3.5  },
+    "EURNZD":  { "asset_class": "forex",  "spread": 2.5,  "slippage": 1.5,  "spread_open_widened": 4.5  },
+    "EURCAD":  { "asset_class": "forex",  "spread": 2.0,  "slippage": 1.2,  "spread_open_widened": 3.5  },
+    "EURCHF":  { "asset_class": "forex",  "spread": 1.5,  "slippage": 0.8,  "spread_open_widened": 2.8  },
+    "GBPCHF":  { "asset_class": "forex",  "spread": 2.0,  "slippage": 1.2,  "spread_open_widened": 3.5  },
+    "AUDCHF":  { "asset_class": "forex",  "spread": 1.8,  "slippage": 1.0,  "spread_open_widened": 3.2  },
+    "NZDCHF":  { "asset_class": "forex",  "spread": 2.0,  "slippage": 1.2,  "spread_open_widened": 3.5  },
+    "CADJPY":  { "asset_class": "forex",  "spread": 1.8,  "slippage": 1.0,  "spread_open_widened": 3.2  },
+    "AUDJPY":  { "asset_class": "forex",  "spread": 1.5,  "slippage": 0.8,  "spread_open_widened": 2.8  },
+    "NZDJPY":  { "asset_class": "forex",  "spread": 1.8,  "slippage": 1.0,  "spread_open_widened": 3.2  },
+    "CADCHF":  { "asset_class": "forex",  "spread": 1.8,  "slippage": 1.0,  "spread_open_widened": 3.2  },
+    "CHFJPY":  { "asset_class": "forex",  "spread": 1.8,  "slippage": 1.0,  "spread_open_widened": 3.2  },
+
+    "SP500":   { "asset_class": "index",  "spread": 0.7,  "slippage": 1.0,  "spread_open_widened": 2.0  },
+    "NAS100":  { "asset_class": "index",  "spread": 1.5,  "slippage": 2.0,  "spread_open_widened": 4.0  },
+    "US30":    { "asset_class": "index",  "spread": 2.0,  "slippage": 3.0,  "spread_open_widened": 6.0  },
+    "DE40":    { "asset_class": "index",  "spread": 1.2,  "slippage": 1.5,  "spread_open_widened": 3.0  },
+    "UK100":   { "asset_class": "index",  "spread": 1.5,  "slippage": 2.0,  "spread_open_widened": 4.0  },
+    "JP225":   { "asset_class": "index",  "spread": 8.0,  "slippage": 5.0,  "spread_open_widened": 15.0 },
+
+    "XAUUSD":  { "asset_class": "metal",  "spread": 0.6,  "slippage": 0.3,  "spread_open_widened": 1.2  },
+    "XAGUSD":  { "asset_class": "metal",  "spread": 0.03, "slippage": 0.02, "spread_open_widened": 0.06 },
+
+    "XTIUSD":  { "asset_class": "energy", "spread": 0.06, "slippage": 0.05, "spread_open_widened": 0.15 },
+    "XBRUSD":  { "asset_class": "energy", "spread": 0.06, "slippage": 0.05, "spread_open_widened": 0.15 },
+    "XNGUSD":  { "asset_class": "energy", "spread": 0.01, "slippage": 0.01, "spread_open_widened": 0.03 },
+
+    "BTCUSD":  { "asset_class": "crypto", "spread": 6.5,  "slippage": 8.0,  "spread_open_widened": 15.0 },
+    "ETHUSD":  { "asset_class": "crypto", "spread": 2.0,  "slippage": 2.5,  "spread_open_widened": 5.0  }
+  }
+}

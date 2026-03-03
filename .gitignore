@@ -1,0 +1,41 @@
+# ===== C# Build Artifacts =====
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+*.cache
+*.suo
+*.user
+.vs/
+
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# ===== API Keys & Secrets =====
+config.json
+
+# ===== Data Files =====
+*.csv
+*.h5
+*.hdf5
+*.parquet
+data/
+
+# ===== Logs & State =====
+*.log
+logs/
+
+# ===== OS Files =====
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ===== IDE =====
+.idea/
+.vscode/
