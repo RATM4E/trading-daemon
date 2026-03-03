@@ -20,39 +20,51 @@ public static class RCalc
     /// <summary>
     /// Calculate R-result for a closed position.
     /// Returns null if R-result cannot be determined (manual close, no signal_data, etc).
+    ///
+    /// Price-based R (when sl_dist is in signal_data):
+    ///   R = (closePrice - entryPrice) / original_sl_dist   (LONG; mirror for SHORT)
+    ///   Works correctly for trail strategies where SL moves after entry.
+    ///
+    /// Fixed R (fallback when sl_dist is NOT in signal_data):
+    ///   TP → +tp_r, SL → -1.0, protector → protector_lock_r
     /// </summary>
-    public static double? GetRResult(string? closeReason, bool protectorFired, string? signalDataJson)
+    public static double? GetRResult(
+        string? closeReason, 
+        bool protectorFired, 
+        string? signalDataJson,
+        double entryPrice = 0,
+        double closePrice = 0,
+        bool isBuy = true)
     {
         if (string.IsNullOrEmpty(closeReason))
             return null;
 
         var reason = closeReason.ToUpperInvariant();
 
-        // TP hit → +tp_r from signal_data
+        // manual, signal, stopout, unknown → don't count in R-budget
+        if (reason != "TP" && reason != "SL")
+            return null;
+
+        // ── Price-based R (for trail strategies with sl_dist) ──
+        double slDist = ParseSignalField(signalDataJson, "sl_dist") ?? 0;
+        if (slDist > 0 && entryPrice > 0 && closePrice > 0)
+        {
+            double priceMove = isBuy ? closePrice - entryPrice : entryPrice - closePrice;
+            return Math.Round(priceMove / slDist, 4);
+        }
+
+        // ── Fixed R fallback (non-trail strategies) ──
         if (reason == "TP")
         {
-            double tpR = ParseSignalField(signalDataJson, "tp_r") ?? 1.0;
-            return tpR;
+            return ParseSignalField(signalDataJson, "tp_r") ?? 1.0;
         }
 
-        // SL hit
-        if (reason == "SL")
+        // SL
+        if (protectorFired)
         {
-            if (protectorFired)
-            {
-                // Protector moved SL → use protector_lock_r from signal_data
-                double lockR = ParseSignalField(signalDataJson, "protector_lock_r") ?? -0.5;
-                return lockR;
-            }
-            else
-            {
-                // Raw SL hit → -1.0R
-                return -1.0;
-            }
+            return ParseSignalField(signalDataJson, "protector_lock_r") ?? -0.5;
         }
-
-        // manual, signal, stopout, unknown → don't count in R-budget
-        return null;
+        return -1.0;
     }
 
     /// <summary>Parse a numeric field from signal_data JSON string.</summary>

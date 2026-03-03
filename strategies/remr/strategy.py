@@ -11,7 +11,7 @@ Logic:
 Exits: trailing stop (0.15R trigger, 0.20R offset) + timeout (10 H12 bars).
 No fixed TP.
 
-Data: receives M30 bars from daemon, resamples to H12 internally.
+Data: receives tick-TF bars (M5/M30) from daemon, resamples to H12 internally.
 Actions: ENTER, EXIT, MODIFY_SL per REMR_STRATEGY_CONTRACT.md.
 
 KNOWN ISSUES (daemon-side):
@@ -124,6 +124,22 @@ class Strategy:
         self.rcap   = p.get("r_cap", None)
 
         self.syms = [c["sym"] for c in config.get("combos", []) if "sym" in c]
+
+        # Tick TF from combo config (daemon feeds this TF)
+        self.tick_tf = "M30"
+        combos = config.get("combos", [])
+        if combos:
+            dirs = combos[0].get("directions", {})
+            for d in dirs.values():
+                strat = d.get("strat", {})
+                if "tf" in strat:
+                    self.tick_tf = strat["tf"]
+                    break
+        self._tick_sec = {"M1":60,"M5":300,"M15":900,"M30":1800,
+                          "H1":3600,"H4":14400}.get(self.tick_tf, 1800)
+        # Trail scans last N tick-bars covering ~90 min (same window as 3×M30)
+        self._trail_scan = max(3, 5400 // self._tick_sec)
+
         self._st   = {s: SymState() for s in self.syms}
         self._atr  = {s: 0.0 for s in self.syms}
         self._last = {s: 0 for s in self.syms}
@@ -135,7 +151,7 @@ class Strategy:
     def get_requirements(self):
         return {
             "symbols": list(self.syms),
-            "timeframes": {s: "M30" for s in self.syms},
+            "timeframes": {s: self.tick_tf for s in self.syms},
             "history_bars": self.hbars,
             "r_cap": self.rcap,
         }
@@ -172,10 +188,10 @@ class Strategy:
         for s, v in state.get("atr", {}).items():
             if s in self._atr: self._atr[s] = v
 
-    # ── M30 -> H12 resampling ────────────────────────────────────
+    # ── tick-TF -> H12 resampling ───────────────────────────────────
 
     def _resample(self, sym, raw):
-        """Aggregate M30 bars into H12 buckets. Returns True if new H12 bar closed."""
+        """Aggregate tick-TF bars into H12 buckets. Returns True if new H12 bar closed."""
         bk = {}
         for b in raw:
             t, o, h, lo, c = b["time"], b["open"], b["high"], b["low"], b["close"]
@@ -190,7 +206,7 @@ class Strategy:
         if not bk:
             return False
 
-        # Forming bar = bucket containing the last M30 bar. Exclude from completed.
+        # Forming bar = bucket containing the last tick bar. Exclude from completed.
         forming = (raw[-1]["time"] // self.tf) * self.tf
         done = sorted([v for k2, v in bk.items() if k2 != forming], key=lambda x: x[4])
 
@@ -380,17 +396,18 @@ class Strategy:
         return any(pt.symbol == sym for pt in self._pos.values())
 
     def _trail(self, sym, raw, dpos, actions):
-        """Update trailing stop using M30 bar data for high-resolution MFE tracking.
+        """Update trailing stop using tick-TF bar data for high-resolution MFE tracking.
 
-        Scans last 3 M30 bars to catch highs/lows that might occur when a bar
+        Scans last N bars (~90 min window) to catch highs/lows that might occur when a bar
         closes between scheduler polls (every 10s). best_price is a running
         max/min that persists across ticks, so only truly new extremes matter.
         """
         if not raw:
             return
 
-        # Scan last 3 M30 bars for best high/low
-        scan = raw[-3:] if len(raw) >= 3 else raw
+        # Scan last N bars (covers ~90 min regardless of tick TF)
+        n = self._trail_scan
+        scan = raw[-n:] if len(raw) >= n else raw
         scan_high = max(b["high"] for b in scan)
         scan_low  = min(b["low"]  for b in scan)
 
@@ -400,7 +417,7 @@ class Strategy:
             if pt.symbol != sym or pt.sl_dist <= 0:
                 continue
 
-            # Update best price from M30 scan
+            # Update best price from bar scan
             if pt.direction == "LONG":
                 if scan_high > pt.best_price:
                     pt.best_price = scan_high

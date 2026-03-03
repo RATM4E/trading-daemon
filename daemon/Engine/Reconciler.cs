@@ -189,7 +189,9 @@ public class Reconciler
         _state.AddRealizedPnl(terminalId, serverDate, pnl);
 
         // Phase 9.R: R-cap — calculate R-result and add to daily accumulator
-        var rResult = RCalc.GetRResult(closeReason, dbPos.ProtectorFired, dbPos.SignalData);
+        var rResult = RCalc.GetRResult(
+            closeReason, dbPos.ProtectorFired, dbPos.SignalData,
+            dbPos.PriceOpen, closePrice, dbPos.Direction == "BUY");
         if (rResult.HasValue && dbPos.Source != "unmanaged")
         {
             _state.AddDailyR(terminalId, dbPos.Source, serverDate, rResult.Value);

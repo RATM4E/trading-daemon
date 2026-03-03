@@ -92,8 +92,29 @@ public class BacktestExecutor
             Comment = action.Comment,
         };
 
+        // Fix: capture original SL distance at entry (immutable through trail)
+        double parsedSlDist = ParseSlDist(action.SignalData);
+        pos.OriginalSlDist = parsedSlDist > 0 
+            ? parsedSlDist 
+            : Math.Abs(fillPrice - pos.SL);
+
         OpenPositions.Add(pos);
         return pos;
+    }
+
+    /// <summary>Parse sl_dist from signal_data JSON.</summary>
+    private static double ParseSlDist(string? signalDataJson)
+    {
+        if (string.IsNullOrEmpty(signalDataJson)) return 0;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(signalDataJson);
+            if (doc.RootElement.TryGetProperty("sl_dist", out var prop)
+                && prop.ValueKind == System.Text.Json.JsonValueKind.Number)
+                return prop.GetDouble();
+        }
+        catch { }
+        return 0;
     }
 
     // ── Close Position ───────────────────────────────────────
@@ -304,7 +325,9 @@ public class BacktestExecutor
             flatCostDollar = costTicks * tickVal * pos.Volume;
 
             // Cost in R-units: cost_price / sl_distance
-            double slDist = Math.Abs(pos.PriceOpen - pos.SL);
+            double slDist = pos.OriginalSlDist > 0 
+                ? pos.OriginalSlDist 
+                : Math.Abs(pos.PriceOpen - pos.SL);
             if (slDist > 0)
                 flatCostR = costPrice / slDist;
         }
@@ -315,9 +338,11 @@ public class BacktestExecutor
         // Dollar P&L = raw - cost - commission
         double pnlDollar = rawPnl - flatCostDollar - commissionDollar;
 
-        // R-result: price movement / SL distance - cost_in_R
+        // R-result: price movement / original SL distance - cost_in_R
         double rResult = 0;
-        double slDistance = Math.Abs(pos.PriceOpen - pos.SL);
+        double slDistance = pos.OriginalSlDist > 0 
+            ? pos.OriginalSlDist 
+            : Math.Abs(pos.PriceOpen - pos.SL);
         if (slDistance > 0)
         {
             bool isBuy = pos.Direction == "BUY";
@@ -396,6 +421,7 @@ public class BtPosition
     public int Magic { get; set; }
     public string? SignalData { get; set; }
     public string? Comment { get; set; }
+    public double OriginalSlDist { get; set; }   // original SL distance from signal_data (fixed at entry)
 }
 
 public class BtTrade

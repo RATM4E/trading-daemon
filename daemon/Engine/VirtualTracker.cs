@@ -162,7 +162,9 @@ public class VirtualTracker
         _state.AddRealizedPnl(pos.TerminalId, brokerDate, pnl);
 
         // Phase 10: R-cap — calculate R-result for virtual closes
-        var rResult = Engine.RCalc.GetRResult(closeReason, pos.ProtectorFired, pos.SignalData);
+        var rResult = Engine.RCalc.GetRResult(
+            closeReason, pos.ProtectorFired, pos.SignalData,
+            pos.PriceOpen, closePrice, pos.Direction == "BUY");
         if (rResult.HasValue)
         {
             _state.AddDailyR(pos.TerminalId, pos.Source, brokerDate, rResult.Value);
