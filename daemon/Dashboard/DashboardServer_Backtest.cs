@@ -422,7 +422,20 @@ public partial class DashboardServer
             };
         }).ToList();
 
-        return new { cmd = "bt_cost_model", units, symbols };
+        // Build alias lookup: variant → canonical symbol name in cost model
+        // So UI can resolve DAX40 → DE40, JPN225 → JP225, etc.
+        var aliasLookup = new Dictionary<string, string>();
+        var resolver = _connector.GetSymbolResolver();
+        foreach (var canonical in entries.Keys)
+        {
+            foreach (var variant in resolver.GetVariants(canonical))
+            {
+                if (!variant.Equals(canonical, StringComparison.OrdinalIgnoreCase))
+                    aliasLookup.TryAdd(variant, canonical);
+            }
+        }
+
+        return new { cmd = "bt_cost_model", units, symbols, aliases = aliasLookup };
     }
 
     // ===================================================================

@@ -1,32 +1,36 @@
 using System.Linq;
 using System.Text.Json;
 using Daemon.Config;
+using Daemon.Engine;
 using Daemon.Models;
 
 namespace Daemon.Connector;
 
 /// <summary>
 /// Manages all MT5 worker processes. Provides a unified interface for the daemon
-/// to interact with any terminal by ID. Handles symbol mapping transparently.
+/// to interact with any terminal by ID. Handles symbol mapping transparently
+/// via SymbolResolver (unified alias system).
 /// </summary>
 public class ConnectorManager : IDisposable
 {
     private readonly DaemonConfig _config;
     private readonly ILogger _log;
     private readonly Dictionary<string, WorkerProcess> _workers = new();
-    private readonly Dictionary<string, SymbolMapper> _symbolMappers = new();
     private Timer? _heartbeatTimer;
     private bool _disposed;
     private readonly Dictionary<string, bool> _lastConnState = new();
 
-    /// <summary>Optional alias resolver: broker symbol → canonical. Set from CostModelLoader.</summary>
-    private Func<string, string?>? _aliasResolver;
+    /// <summary>Unified symbol resolver: canonical ↔ broker, loaded from cost_model + config.</summary>
+    private SymbolResolver _resolver = new();
 
     /// <summary>Fires when terminal connectivity changes: (terminalId, newStatus: "connected"/"disconnected")</summary>
     public event Action<string, string>? OnTerminalStatusChanged;
 
-    /// <summary>Set alias resolver for automatic broker→canonical symbol fallback.</summary>
-    public void SetAliasResolver(Func<string, string?> resolver) => _aliasResolver = resolver;
+    /// <summary>Set unified symbol resolver (replaces old SymbolMapper + alias resolver).</summary>
+    public void SetSymbolResolver(SymbolResolver resolver) => _resolver = resolver;
+
+    /// <summary>Get the symbol resolver (for external use, e.g. dashboard sizing).</summary>
+    public SymbolResolver GetSymbolResolver() => _resolver;
 
     public ConnectorManager(DaemonConfig config, ILogger logger)
     {
@@ -41,9 +45,6 @@ public class ConnectorManager : IDisposable
 
         foreach (var tc in _config.Terminals)
         {
-            // Build symbol mapper
-            _symbolMappers[tc.Id] = new SymbolMapper(tc.SymbolMap);
-
             if (!tc.Enabled)
             {
                 _log.Info($"[{tc.Id}] Terminal disabled, skipping");
@@ -70,6 +71,9 @@ public class ConnectorManager : IDisposable
                     _log.Info($"[{tc.Id}] Account {acc.Login} | Balance: {acc.Balance:F2} {acc.Currency} | "
                             + $"Leverage: {acc.Leverage} | Type: {acc.AccountType}");
                 }
+
+                // Cache all available symbols in resolver for canonical→broker resolution
+                await CacheTerminalSymbolsAsync(tc.Id, worker, ct);
             }
             catch (Exception ex)
             {
@@ -160,7 +164,7 @@ public class ConnectorManager : IDisposable
                                                 int count = 300, CancellationToken ct = default)
     {
         var worker = GetWorker(terminalId);
-        var brokerSymbol = GetMapper(terminalId).Map(symbol);
+        var brokerSymbol = _resolver.ToBroker(symbol, terminalId);
         return await worker.GetRatesAsync(brokerSymbol, timeframe, count, ct);
     }
 
@@ -175,7 +179,7 @@ public class ConnectorManager : IDisposable
         long fromTimestamp, long toTimestamp, CancellationToken ct = default)
     {
         var worker = GetWorker(terminalId);
-        var brokerSymbol = GetMapper(terminalId).Map(symbol);
+        var brokerSymbol = _resolver.ToBroker(symbol, terminalId);
 
         var parameters = new Dictionary<string, object>
         {
@@ -202,12 +206,12 @@ public class ConnectorManager : IDisposable
                                                            CancellationToken ct = default)
     {
         var worker = GetWorker(terminalId);
-        var brokerSymbol = GetMapper(terminalId).Map(symbol);
+        var brokerSymbol = _resolver.ToBroker(symbol, terminalId);
         var card = await worker.GetSymbolInfoAsync(brokerSymbol, ct);
 
         // Unmap symbol name in the card
         if (card != null)
-            card.Symbol = GetMapper(terminalId).Unmap(card.Symbol);
+            card.Symbol = _resolver.ToCanonical(card.Symbol, terminalId);
 
         return card;
     }
@@ -219,7 +223,7 @@ public class ConnectorManager : IDisposable
 
         // Map canonical symbol â†’ broker symbol in the request
         if (request.TryGetValue("symbol", out var sym) && sym is string canonical)
-            request["symbol"] = GetMapper(terminalId).Map(canonical);
+            request["symbol"] = _resolver.ToBroker(canonical, terminalId);
 
         return await worker.SendOrderAsync(request, ct);
     }
@@ -251,23 +255,10 @@ public class ConnectorManager : IDisposable
     }
 
     /// <summary>Unmap a broker symbol to canonical for a terminal.
-    /// Tries config symbol_map first, then alias resolver (cost model v2).</summary>
+    /// Uses unified SymbolResolver (config symbol_map → cost model aliases → strip algorithm).</summary>
     public string UnmapSymbol(string terminalId, string brokerSymbol)
     {
-        if (_symbolMappers.TryGetValue(terminalId, out var mapper))
-        {
-            var result = mapper.Unmap(brokerSymbol);
-            if (result != brokerSymbol) return result; // explicit mapping found
-        }
-
-        // Alias fallback: resolve via cost model aliases
-        if (_aliasResolver != null)
-        {
-            var canonical = _aliasResolver(brokerSymbol);
-            if (canonical != null) return canonical;
-        }
-
-        return brokerSymbol;
+        return _resolver.ToCanonical(brokerSymbol, terminalId);
     }
 
     /// <summary>Calculate effective leverage per asset class for a terminal.</summary>
@@ -275,12 +266,11 @@ public class ConnectorManager : IDisposable
         Dictionary<string, string> classSymbols, CancellationToken ct = default)
     {
         var worker = GetWorker(terminalId);
-        var mapper = GetMapper(terminalId);
 
         // Map canonical symbols â†’ broker symbols
         var mapped = new Dictionary<string, string>();
         foreach (var kv in classSymbols)
-            mapped[kv.Key] = mapper.Map(kv.Value);
+            mapped[kv.Key] = _resolver.ToBroker(kv.Value, terminalId);
 
         return await worker.CalcLeverageAsync(mapped, ct);
     }
@@ -292,7 +282,7 @@ public class ConnectorManager : IDisposable
                                                 CancellationToken ct = default)
     {
         var worker = GetWorker(terminalId);
-        var brokerSymbol = GetMapper(terminalId).Map(symbol);
+        var brokerSymbol = _resolver.ToBroker(symbol, terminalId);
         string action = direction.ToUpperInvariant() == "SHORT" ? "sell" : "buy";
         return await worker.CalcProfitAsync(brokerSymbol, action, volume, priceOpen, priceClose, ct);
     }
@@ -304,7 +294,7 @@ public class ConnectorManager : IDisposable
                                                 CancellationToken ct = default)
     {
         var worker = GetWorker(terminalId);
-        var brokerSymbol = GetMapper(terminalId).Map(symbol);
+        var brokerSymbol = _resolver.ToBroker(symbol, terminalId);
         string action = direction.ToUpperInvariant() == "SHORT" ? "sell" : "buy";
         return await worker.CalcMarginAsync(brokerSymbol, action, volume, price, ct);
     }
@@ -318,26 +308,55 @@ public class ConnectorManager : IDisposable
         return await worker.CalcPositionsMarginAsync(magics, ct);
     }
 
-    /// <summary>Check which canonical symbols are available on a terminal.
-    /// Applies config symbol_map first, then worker resolves via alias table.</summary>
+    /// <summary>Check which symbols are available on a terminal.
+    /// Returns results keyed by the ORIGINAL input symbol names (not cost_model canonical).
+    /// This ensures callers (sizing, backtest) get back the same keys they passed in.</summary>
     public async Task<(Dictionary<string, string> Resolved, List<string> Missing)>
         CheckSymbolsAsync(string terminalId, List<string> canonicalSymbols, CancellationToken ct = default)
     {
         var worker = GetWorker(terminalId);
 
-        // Pre-map via config symbol_map (user overrides take priority)
-        var mapper = GetMapper(terminalId);
-        var toCheck = canonicalSymbols.Select(s => mapper.Map(s)).ToList();
+        // Build mapping: original input → broker symbol (for round-trip)
+        var inputToBroker = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var brokerToInput = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var toCheck = new List<string>();
 
-        var (resolved, missing) = await worker.CheckSymbolsAsync(toCheck, ct);
+        foreach (var sym in canonicalSymbols)
+        {
+            var broker = _resolver.ToBroker(sym, terminalId);
+            inputToBroker[sym] = broker;
+            brokerToInput.TryAdd(broker, sym);  // first wins if multiple map to same broker
+            toCheck.Add(broker);
+        }
 
-        // Unmap resolved broker names back to canonical (with alias fallback)
-        var canonical = new Dictionary<string, string>();
+        var (resolved, workerMissing) = await worker.CheckSymbolsAsync(toCheck, ct);
+
+        // Cache resolved symbols in resolver for future ToBroker lookups
+        _resolver.CacheResolvedSymbols(terminalId, resolved);
+
+        // Map results back to ORIGINAL input symbol names
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var kv in resolved)
-            canonical[UnmapSymbol(terminalId, kv.Key)] = kv.Value;
+        {
+            // kv.Key = what we sent to Python (could be broker name)
+            // kv.Value = actual MT5 symbol name
+            if (brokerToInput.TryGetValue(kv.Key, out var originalInput))
+                result[originalInput] = kv.Value;
+            else
+                result[kv.Key] = kv.Value;  // fallback: use as-is
+        }
 
-        var missingCanonical = missing.Select(s => UnmapSymbol(terminalId, s)).ToList();
-        return (canonical, missingCanonical);
+        // Map missing back to original input names
+        var missingResult = new List<string>();
+        foreach (var m in workerMissing)
+        {
+            if (brokerToInput.TryGetValue(m, out var originalInput))
+                missingResult.Add(originalInput);
+            else
+                missingResult.Add(m);
+        }
+
+        return (result, missingResult);
     }
 
     /// <summary>Add and start a new terminal worker at runtime (from dashboard discovery).</summary>
@@ -346,7 +365,8 @@ public class ConnectorManager : IDisposable
         if (_workers.ContainsKey(tc.Id))
             throw new InvalidOperationException($"Terminal '{tc.Id}' already exists");
 
-        _symbolMappers[tc.Id] = new SymbolMapper(tc.SymbolMap);
+        // Register symbol_map in resolver (new terminal discovered at runtime)
+        _resolver.LoadTerminalMap(tc.Id, tc.SymbolMap);
 
         var worker = new WorkerProcess(tc, _config.PythonPath, _config.WorkerScript, _log);
         _workers[tc.Id] = worker;
@@ -359,6 +379,9 @@ public class ConnectorManager : IDisposable
             _log.Info($"[{tc.Id}] Account {acc.Login} | Balance: {acc.Balance:F2} {acc.Currency} | "
                     + $"Leverage: {acc.Leverage} | Type: {acc.AccountType}");
         }
+
+        // Cache terminal's available symbols in resolver
+        await CacheTerminalSymbolsAsync(tc.Id, worker, ct);
     }
 
     /// <summary>Stop all workers gracefully.</summary>
@@ -402,7 +425,7 @@ public class ConnectorManager : IDisposable
         }
 
         // Create and start new worker
-        _symbolMappers[terminalId] = new SymbolMapper(termConfig.SymbolMap);
+        _resolver.LoadTerminalMap(terminalId, termConfig.SymbolMap);
         var worker = new WorkerProcess(termConfig, _config.PythonPath, _config.WorkerScript, _log);
         _workers[terminalId] = worker;
         await worker.StartAsync(ct);
@@ -413,6 +436,9 @@ public class ConnectorManager : IDisposable
             _log.Info($"[{terminalId}] Reconnected: Account {acc.Login} | Balance: {acc.Balance:F2} {acc.Currency}");
             _lastConnState[terminalId] = true;
             OnTerminalStatusChanged?.Invoke(terminalId, "connected");
+
+            // Re-cache terminal symbols after restart
+            await CacheTerminalSymbolsAsync(terminalId, worker, ct);
         }
         else
         {
@@ -425,7 +451,7 @@ public class ConnectorManager : IDisposable
     public async Task RemoveTerminalAsync(string terminalId, CancellationToken ct = default)
     {
         await StopTerminalAsync(terminalId, ct);
-        _symbolMappers.Remove(terminalId);
+        // Terminal map stays in resolver (harmless, no cleanup needed)
         _log.Info($"[{terminalId}] Terminal removed from ConnectorManager");
     }
 
@@ -442,11 +468,22 @@ public class ConnectorManager : IDisposable
         return worker;
     }
 
-    private SymbolMapper GetMapper(string terminalId)
+    /// <summary>Fetch all symbol names from terminal and cache in SymbolResolver.</summary>
+    private async Task CacheTerminalSymbolsAsync(string terminalId, WorkerProcess worker, CancellationToken ct)
     {
-        if (!_symbolMappers.TryGetValue(terminalId, out var mapper))
-            throw new KeyNotFoundException($"No symbol mapper for terminal '{terminalId}'");
-        return mapper;
+        try
+        {
+            var allSymbols = await worker.GetAllSymbolNamesAsync(ct);
+            if (allSymbols != null && allSymbols.Count > 0)
+            {
+                _resolver.CacheTerminalSymbols(terminalId, allSymbols);
+                _log.Info($"[{terminalId}] SymbolResolver: cached {allSymbols.Count} terminal symbols");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"[{terminalId}] Failed to cache terminal symbols: {ex.Message}");
+        }
     }
 
     // ===================================================================
@@ -505,10 +542,9 @@ public class ConnectorManager : IDisposable
 }
 
 /// <summary>
-/// Two-way symbol mapping: canonical â†” broker.
-/// e.g. EURUSD â†” EURUSDi
-/// If not in map, returns as-is.
+/// DEPRECATED: Use SymbolResolver instead. Kept for backward compatibility.
 /// </summary>
+[Obsolete("Use Daemon.Engine.SymbolResolver instead")]
 public class SymbolMapper
 {
     private readonly Dictionary<string, string> _toB;   // canonical â†’ broker

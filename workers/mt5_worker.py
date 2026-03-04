@@ -700,12 +700,25 @@ def handle_check_symbols(msg: dict) -> dict:
         if cup in available:
             found = available[cup]
         else:
-            # 2. Known aliases
+            # 2. Known aliases (input is canonical key in SYMBOL_ALIASES)
             aliases = SYMBOL_ALIASES.get(canonical, [])
             for alias in aliases:
                 if alias.upper() in available:
                     found = available[alias.upper()]
                     break
+
+            # 2b. Reverse alias: input might be a variant (e.g. DE40 → canonical DAX40)
+            if not found and cup in _ALIAS_REVERSE:
+                real_canonical = _ALIAS_REVERSE[cup]
+                # Try the real canonical name
+                if real_canonical.upper() in available:
+                    found = available[real_canonical.upper()]
+                else:
+                    # Try all variants of the real canonical
+                    for alias in SYMBOL_ALIASES.get(real_canonical, []):
+                        if alias.upper() in available:
+                            found = available[alias.upper()]
+                            break
 
             # 3. Suffix variations on canonical name
             if not found:
@@ -730,6 +743,23 @@ def handle_check_symbols(msg: dict) -> dict:
         "resolved": resolved,
         "missing": missing,
     })
+
+
+def handle_get_all_symbols(msg: dict) -> dict:
+    """Return all symbol names available on the terminal.
+
+    Used by C# SymbolResolver to cache terminal's symbol inventory
+    for canonical→broker resolution without repeated CHECK_SYMBOLS calls.
+
+    Output: { "symbols": ["EURUSD", "GBPUSD", "GOLD", ...], "count": 850 }
+    """
+    all_syms = mt5.symbols_get()
+    if not all_syms:
+        return _error(msg, "symbols_get failed or returned 0 symbols")
+
+    names = [s.name for s in all_syms]
+    log.info(f"GET_ALL_SYMBOLS: {len(names)} symbols on terminal")
+    return _ok(msg, {"symbols": names, "count": len(names)})
 
 
 def handle_calc_margin(msg: dict) -> dict:
@@ -891,6 +921,7 @@ COMMANDS = {
     "HISTORY_DEALS":  handle_history_deals,
     "CALC_LEVERAGE":  handle_calc_leverage,
     "CHECK_SYMBOLS":  handle_check_symbols,
+    "GET_ALL_SYMBOLS": handle_get_all_symbols,
     "CALC_PROFIT":    handle_calc_profit,
     "CALC_MARGIN":    handle_calc_margin,
     "CALC_POSITIONS_MARGIN": handle_calc_positions_margin,

@@ -348,6 +348,25 @@ public class WorkerProcess : IDisposable
         return (resolved, missing);
     }
 
+    /// <summary>Get all symbol names available on the terminal.
+    /// Used to populate SymbolResolver's terminal cache.</summary>
+    public async Task<List<string>?> GetAllSymbolNamesAsync(CancellationToken ct = default)
+    {
+        var resp = await SendCommandAsync("GET_ALL_SYMBOLS", ct: ct);
+        if (!resp.IsOk || resp.Data == null) return null;
+
+        var result = new List<string>();
+        if (resp.Data.Value.TryGetProperty("symbols", out var symsProp))
+        {
+            foreach (var item in symsProp.EnumerateArray())
+            {
+                var s = item.GetString();
+                if (s != null) result.Add(s);
+            }
+        }
+        return result;
+    }
+
     /// <summary>Send a trade order.</summary>
     public async Task<WorkerResponse> SendOrderAsync(Dictionary<string, object> request,
                                                       CancellationToken ct = default)

@@ -361,7 +361,13 @@ var BacktestTab = ({ terminals, send, connected }) => {
   // ── Cost lookup ────────────────────────────────────────────
   const getCost = (symbol) => {
     if (!costModel?.symbols) return null;
-    return costModel.symbols.find(s => s.symbol === symbol);
+    // Direct match first
+    const direct = costModel.symbols.find(s => s.symbol === symbol);
+    if (direct) return direct;
+    // Alias fallback: DAX40 → DE40, JPN225 → JP225, etc.
+    const canonical = costModel.aliases?.[symbol];
+    if (canonical) return costModel.symbols.find(s => s.symbol === canonical);
+    return null;
   };
 
   // ── Strategy requirements display ──────────────────────────

@@ -42,6 +42,26 @@ class Program
         using var connector = new ConnectorManager(config, log);
         using var cts = new CancellationTokenSource();
         var dataDir = Path.Combine(AppContext.BaseDirectory, "Data");
+
+        // 3b. SymbolResolver — unified symbol mapping (cost model aliases + per-terminal overrides)
+        var symbolResolver = new SymbolResolver();
+
+        // Load cost model aliases (canonical ↔ broker variants from cost_model_v2.json)
+        var costModelPath = Path.IsPathRooted(config.CostModelPath)
+            ? config.CostModelPath
+            : Path.Combine(AppContext.BaseDirectory, config.CostModelPath);
+        if (File.Exists(costModelPath))
+        {
+            symbolResolver.LoadCostModelAliases(File.ReadAllText(costModelPath));
+            log.Info($"SymbolResolver: loaded {costModelPath} ({symbolResolver.AliasCount} aliases, " +
+                     $"{symbolResolver.CanonicalCount} canonical symbols)");
+        }
+
+        // Load per-terminal symbol_map overrides from config.json
+        foreach (var tc in config.Terminals.Where(t => t.Enabled))
+            symbolResolver.LoadTerminalMap(tc.Id, tc.SymbolMap);
+
+        connector.SetSymbolResolver(symbolResolver);
         Console.CancelKeyPress += (_, e) =>
         {
             e.Cancel = true;
@@ -148,14 +168,10 @@ class Program
             log.Info($"BarsHistoryDb: {barsHistoryDbPath}");
 
             CostModelLoader? costModelLoader = null;
-            var costModelPath = Path.IsPathRooted(config.CostModelPath)
-                ? config.CostModelPath
-                : Path.Combine(AppContext.BaseDirectory, config.CostModelPath);
             if (File.Exists(costModelPath))
             {
                 costModelLoader = CostModelLoader.FromFile(costModelPath);
-                log.Info($"CostModel: loaded {costModelPath} ({costModelLoader.GetRawEntries().Count} symbols, {costModelLoader.AliasCount} aliases)");
-                connector.SetAliasResolver(costModelLoader.ResolveCanonical);
+                log.Info($"CostModel: loaded ({costModelLoader.GetRawEntries().Count} symbols for backtest costs)");
             }
             else
             {
