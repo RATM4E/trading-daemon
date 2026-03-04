@@ -494,6 +494,9 @@ public class BacktestConfig
 
     /// <summary>Data source identifier (terminal/broker). Used to select correct bar data.</summary>
     public string Source { get; set; } = "legacy";
+
+    /// <summary>Per-symbol risk factors from sizing config. Overrides strategy's own sizing.</summary>
+    public Dictionary<string, double> SizingFactors { get; set; } = new();
 }
 
 /// <summary>Complete result of a backtest run.</summary>

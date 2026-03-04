@@ -95,6 +95,24 @@ var BacktestTab = ({ terminals, send, connected }) => {
         addLog(`Result loaded: ${msg.trades?.length || 0} trades, ${msg.equity_curve?.length || 0} equity points`);
       }
     };
+    const onBtRun = (msg) => {
+      if (msg.status === 'started') {
+        if (msg.sizing_applied) {
+          const disabled = msg.sizing_disabled || [];
+          const factors = msg.sizing_factors || {};
+          const customFactors = Object.entries(factors).filter(([,v]) => v !== 1.0);
+          let sizingInfo = `📐 Sizing applied: ${msg.symbols} symbols active`;
+          if (disabled.length > 0)
+            sizingInfo += `, ${disabled.length} disabled (${disabled.join(', ')})`;
+          if (customFactors.length > 0)
+            sizingInfo += `, custom factors: ${customFactors.map(([s,f]) => `${s}=${f}`).join(', ')}`;
+          addLog(sizingInfo);
+        }
+      } else if (msg.error) {
+        addLog(`❌ ${msg.error}`);
+        setBtRunning(false);
+      }
+    };
 
     wsManager.on('cmd:bt_strategies', onStrategies);
     wsManager.on('cmd:bt_data_coverage', onCoverage);
@@ -104,6 +122,7 @@ var BacktestTab = ({ terminals, send, connected }) => {
     wsManager.on('cmd:bt_progress', onBtProgress);
     wsManager.on('cmd:bt_complete', onBtComplete);
     wsManager.on('cmd:bt_result', onBtResult);
+    wsManager.on('cmd:bt_run', onBtRun);
 
     return () => {
       wsManager.off('cmd:bt_strategies', onStrategies);
@@ -114,6 +133,7 @@ var BacktestTab = ({ terminals, send, connected }) => {
       wsManager.off('cmd:bt_progress', onBtProgress);
       wsManager.off('cmd:bt_complete', onBtComplete);
       wsManager.off('cmd:bt_result', onBtResult);
+      wsManager.off('cmd:bt_run', onBtRun);
     };
   }, [selStrategy]);
 

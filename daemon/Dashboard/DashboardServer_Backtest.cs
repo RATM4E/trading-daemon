@@ -587,6 +587,37 @@ public partial class DashboardServer
                 if (s.GetString() is string sym) symbols.Add(sym);
         }
 
+        // Apply sizing filter: remove symbols disabled in sizing config for this terminal
+        // This ensures backtest respects the same enabled/disabled toggles as live trading
+        bool useSizing = !root.TryGetProperty("ignore_sizing", out var ignoreSzProp) || !ignoreSzProp.GetBoolean();
+        var sizingFactors = new Dictionary<string, double>();  // symbol → risk_factor from sizing
+
+        if (useSizing)
+        {
+            var allSizing = _state.GetAllSymbolSizing(terminal);
+            if (allSizing.Count > 0)
+            {
+                var sizingMap = allSizing.ToDictionary(s => s.Symbol, StringComparer.OrdinalIgnoreCase);
+                var filtered = new List<string>();
+                foreach (var sym in symbols)
+                {
+                    if (sizingMap.TryGetValue(sym, out var sizing))
+                    {
+                        if (!sizing.Enabled)
+                        {
+                            _log.Info($"[Backtest] Skipping {sym}: disabled in sizing for {terminal}");
+                            continue;
+                        }
+                        sizingFactors[sym] = sizing.RiskFactor;
+                    }
+                    filtered.Add(sym);
+                }
+                symbols = filtered;
+                _log.Info($"[Backtest] After sizing filter: {symbols.Count} symbols " +
+                          $"({allSizing.Count - symbols.Count} disabled)");
+            }
+        }
+
         if (symbols.Count == 0)
             return Task.FromResult<object>(new { cmd = "bt_run", error = "No symbols" });
 
@@ -606,6 +637,7 @@ public partial class DashboardServer
             Timeframes = timeframes,
             HistoryBars = historyBars,
             Source = terminal,
+            SizingFactors = sizingFactors,
         };
 
         // Start backtest in background
@@ -666,6 +698,16 @@ public partial class DashboardServer
             }
         }, backtestCt);
 
+        // Collect disabled symbols for UI feedback
+        var disabledSymbols = new List<string>();
+        if (useSizing)
+        {
+            var allSizing2 = _state.GetAllSymbolSizing(terminal);
+            foreach (var s in allSizing2)
+                if (!s.Enabled && !symbols.Contains(s.Symbol))
+                    disabledSymbols.Add(s.Symbol);
+        }
+
         return Task.FromResult<object>(new
         {
             cmd = "bt_run",
@@ -673,6 +715,10 @@ public partial class DashboardServer
             strategy,
             terminal,
             symbols = symbols.Count,
+            symbols_list = symbols,
+            sizing_applied = useSizing && sizingFactors.Count > 0,
+            sizing_disabled = disabledSymbols,
+            sizing_factors = sizingFactors.Count > 0 ? sizingFactors : null,
         });
     }
 

@@ -386,8 +386,15 @@ public class BacktestEngine
         if (profile != null)
         {
             double baseRisk = LotCalculator.GetRiskMoney(profile, _executor!.Balance);
-            var sizing = _liveState.GetSymbolSizing(_btConfig.TerminalId, symbol);
-            double factor = sizing?.RiskFactor ?? 1.0;
+
+            // Prefer sizing factors from btConfig (set at run time from sizing tab),
+            // fall back to DB lookup, then 1.0
+            double factor = _btConfig.SizingFactors.GetValueOrDefault(symbol, 0);
+            if (factor <= 0)
+            {
+                var sizing = _liveState.GetSymbolSizing(_btConfig.TerminalId, symbol);
+                factor = sizing?.RiskFactor ?? 1.0;
+            }
             riskMoney = baseRisk * factor;
         }
         else
