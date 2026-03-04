@@ -70,6 +70,14 @@ var BacktestTab = ({ terminals, send, connected }) => {
       addLog(`Download complete: ${msg.completed}/${msg.total}` + (msg.failed > 0 ? `, ${msg.failed} failed` : ''));
       if (selStrategy) requestCoverage(selStrategy);
     };
+    // Early-exit errors from bt_download_bars (e.g. terminal not connected) never
+    // send bt_download_complete — catch them here so downloading state doesn't get stuck.
+    const onDlError = (msg) => {
+      if (msg.error) {
+        setDownloading(false);
+        addLog(`❌ Download error: ${msg.error}`);
+      }
+    };
 
     // Backtest run events
     const onBtProgress = (msg) => {
@@ -119,6 +127,7 @@ var BacktestTab = ({ terminals, send, connected }) => {
     wsManager.on('cmd:bt_cost_model', onCostModel);
     wsManager.on('cmd:bt_download_progress', onDlProgress);
     wsManager.on('cmd:bt_download_complete', onDlComplete);
+    wsManager.on('cmd:bt_download_bars', onDlError);
     wsManager.on('cmd:bt_progress', onBtProgress);
     wsManager.on('cmd:bt_complete', onBtComplete);
     wsManager.on('cmd:bt_result', onBtResult);
@@ -130,6 +139,7 @@ var BacktestTab = ({ terminals, send, connected }) => {
       wsManager.off('cmd:bt_cost_model', onCostModel);
       wsManager.off('cmd:bt_download_progress', onDlProgress);
       wsManager.off('cmd:bt_download_complete', onDlComplete);
+      wsManager.off('cmd:bt_download_bars', onDlError);
       wsManager.off('cmd:bt_progress', onBtProgress);
       wsManager.off('cmd:bt_complete', onBtComplete);
       wsManager.off('cmd:bt_result', onBtResult);

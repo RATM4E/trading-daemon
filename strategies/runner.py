@@ -232,6 +232,12 @@ def main():
         consecutive_timeouts = 0
         MAX_TIMEOUTS = 3  # 3 × 300s = 15 min with no comm → exit
 
+        # Delta bar buffer: used in backtest mode when daemon sends is_delta=true.
+        # Keys: symbol str → list of bar dicts (rolling window, maxlen=history_bars).
+        # In live mode is_delta is never set, so this stays empty and has no overhead.
+        _history_bars = requirements.get("history_bars", 300)
+        _bar_buffer: dict = {}
+
         while True:
             msg = reader.read(timeout=300.0)
 
@@ -252,9 +258,29 @@ def main():
                 bars_data = msg.get("bars", {})
                 positions = msg.get("positions", [])
                 equity = msg.get("equity", 0)
+                is_delta = msg.get("is_delta", False)
+
+                if is_delta:
+                    # Backtest delta mode: merge new bars into rolling buffer,
+                    # pass full window to on_bars() — same view as live trading.
+                    for sym, new_bars in bars_data.items():
+                        if sym not in _bar_buffer:
+                            _bar_buffer[sym] = []
+                        buf = _bar_buffer[sym]
+                        buf.extend(new_bars)
+                        # Keep only the last history_bars entries
+                        if len(buf) > _history_bars:
+                            del buf[: len(buf) - _history_bars]
+                    effective_bars = _bar_buffer
+                else:
+                    # Full snapshot (live trading or warmup tick).
+                    # Also seed the buffer so it's ready if delta ticks follow.
+                    for sym, bars in bars_data.items():
+                        _bar_buffer[sym] = list(bars[-_history_bars:])
+                    effective_bars = bars_data
 
                 try:
-                    actions = strategy.on_bars(bars_data, positions)
+                    actions = strategy.on_bars(effective_bars, positions)
                 except Exception as e:
                     log(f"ERROR in on_bars: {e}")
                     traceback.print_exc()

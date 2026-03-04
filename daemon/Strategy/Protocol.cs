@@ -119,7 +119,11 @@ public class TickMessage
     [JsonPropertyName("tick_id")]    public long TickId { get; set; }
     [JsonPropertyName("server_time")] public long ServerTime { get; set; }
 
-    /// <summary>Bars per symbol. Key = canonical symbol, Value = list of OHLCV bars.</summary>
+    /// <summary>
+    /// Bars per symbol. In full mode (is_delta=false): complete history window.
+    /// In delta mode (is_delta=true): only new bars since the previous tick.
+    /// Runner maintains the rolling buffer and passes the full window to on_bars().
+    /// </summary>
     [JsonPropertyName("bars")]
     public Dictionary<string, List<BarData>> Bars { get; set; } = new();
 
@@ -130,6 +134,14 @@ public class TickMessage
     /// <summary>Current account equity (for strategy info, not for risk calc).</summary>
     [JsonPropertyName("equity")]
     public double Equity { get; set; }
+
+    /// <summary>
+    /// Backtest optimization: when true, Bars contains only newly-added bars since the
+    /// previous tick. Runner accumulates them in a rolling buffer and passes the full
+    /// window to on_bars(). Always false (or absent) during live trading.
+    /// </summary>
+    [JsonPropertyName("is_delta")]
+    public bool IsDelta { get; set; }
 }
 
 /// <summary>Bar data sent to strategy (lightweight, no JsonPropertyName clutter in core Bar).</summary>

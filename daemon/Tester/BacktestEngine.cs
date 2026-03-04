@@ -40,6 +40,9 @@ public class BacktestEngine
     /// <summary>Bar cursor per symbol for O(1) sliding window in BuildBarsSnapshot.</summary>
     private Dictionary<string, int>? _barCursors;
 
+    /// <summary>Cursor snapshot after warmup tick — used to compute deltas in replay loop.</summary>
+    private Dictionary<string, int>? _deltaStartCursors;
+
     public bool IsRunning => _isRunning;
 
     /// <summary>Progress callback: (barsProcessed, totalBars, currentSymbol, currentTime)</summary>
@@ -178,6 +181,7 @@ public class BacktestEngine
 
             // Reset bar cursors for fresh run
             _barCursors = null;
+            _deltaStartCursors = null;
 
             // ── 7. Warmup tick ───────────────────────────────
             {
@@ -201,6 +205,9 @@ public class BacktestEngine
                         // Unlikely during warmup, but handle defensively
                     }
                 }
+
+                // Snapshot cursor positions — replay loop sends only delta bars from here on
+                _deltaStartCursors = new Dictionary<string, int>(_barCursors!);
             }
 
             // ── 8. Replay loop ───────────────────────────────
@@ -214,8 +221,8 @@ public class BacktestEngine
                 var barTime = timeline[i];
                 var nextBarTime = i + 1 < timeline.Count ? timeline[i + 1] : barTime;
 
-                // 8a. Build bars snapshot (sliding window)
-                var barsSnapshot = BuildBarsSnapshot(allBars, barTime, _btConfig.HistoryBars);
+                // 8a. Build delta bars (only new bars since last tick) — ~2000x less JSON vs full snapshot
+                var deltaSnapshot = BuildDeltaSnapshot(allBars, barTime);
 
                 // 8b. Current bars (for SL/TP check) — O(1) via cursor position
                 var currentBars = new Dictionary<string, Bar>();
@@ -247,7 +254,8 @@ public class BacktestEngine
                     SignalData = p.SignalData,
                 }).ToList();
 
-                var tick = BuildTick(barsSnapshot, barTime, _executor.GetEquity(currentBars));
+                var tick = BuildTick(deltaSnapshot, barTime, _executor.GetEquity(currentBars));
+                tick.IsDelta = true;
                 tick.Positions = positions;
 
                 // 8e. Send TICK → receive ACTIONS
@@ -551,6 +559,47 @@ public class BacktestEngine
             Bars = bars,
             Equity = equity,
         };
+    }
+
+    /// <summary>
+    /// Build delta bars: only the bars added since the previous tick.
+    /// Advances _barCursors and updates _deltaStartCursors.
+    /// Typically returns 0–1 bars per symbol per tick on same-timeframe strategies.
+    /// </summary>
+    private Dictionary<string, List<BarData>> BuildDeltaSnapshot(
+        Dictionary<string, List<Bar>> allBars, long upToTime)
+    {
+        var delta = new Dictionary<string, List<BarData>>(allBars.Count);
+
+        foreach (var kv in allBars)
+        {
+            var bars = kv.Value;
+            int cursor = _barCursors![kv.Key];
+            int prevCursor = _deltaStartCursors![kv.Key];
+
+            // Advance cursor to include all bars <= upToTime
+            while (cursor < bars.Count && bars[cursor].Time <= upToTime)
+                cursor++;
+            _barCursors[kv.Key] = cursor;
+
+            // New bars = everything from prevCursor to current cursor
+            int newCount = cursor - prevCursor;
+            var newBars = new List<BarData>(newCount);
+            for (int i = prevCursor; i < cursor; i++)
+            {
+                var b = bars[i];
+                newBars.Add(new BarData
+                {
+                    Time = b.Time, Open = b.Open, High = b.High,
+                    Low = b.Low, Close = b.Close, Volume = b.Volume,
+                });
+            }
+            delta[kv.Key] = newBars;
+
+            // Update delta start for next tick
+            _deltaStartCursors[kv.Key] = cursor;
+        }
+        return delta;
     }
 
     /// <summary>Get the bar at or after a given time for a symbol. O(1) with cursor hint, O(log N) fallback.</summary>
