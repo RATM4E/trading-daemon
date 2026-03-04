@@ -1,7 +1,7 @@
 # TRADING DAEMON -- Структура проекта и текущее состояние
 
-**Дата**: 25.02.2026
-**Прогресс**: Фазы 0-9 завершены | Фаза 10 -- Dashboard Modularization + Global Pause + Telegram Overhaul
+**Дата**: 04.03.2026
+**Прогресс**: Фазы 0-9 завершены | Фаза 10 -- Dashboard Modularization + Global Pause + Telegram Overhaul + Backtester + SymbolResolver
 
 ---
 
@@ -19,9 +19,10 @@ D:\trading-daemon\
 |
 |-- daemon/                              <-- C# .NET 8 daemon
 |   |-- daemon.csproj                    [Phase 1]  FINAL
-|   |-- Program.cs               ~1619L  [Phase 10]  Engine loop + crash recovery + BarsCache->Dashboard
+|   |-- Program.cs               ~517L   [Phase 10]  Engine loop + crash recovery + BarsCache->Dashboard
 |   |                                                + VirtualTracker tick + equity snapshots (5min timer)
 |   |                                                + SetRiskManager wiring (dashboard + alerts)
+|   |                                                + SymbolResolver init (cost_model aliases + per-terminal maps)
 |   |-- config.json                      [Phase 9.R]  Terminals + auto-persist (strategies: [] with momentum_cont)
 |   |-- news_calendar.json               [Phase 9]   Авто-обновление из ForexFactory каждые 12ч
 |   |
@@ -31,14 +32,26 @@ D:\trading-daemon\
 |   |                                                  StrategyAssignment.RCap (optional override)
 |   |
 |   |-- Connector/
-|   |   |-- ConnectorManager.cs   ~380L  [Phase 9.M] + RestartWorkerAsync, OnTerminalStatusChanged,
+|   |   |-- ConnectorManager.cs   ~566L  [Phase 10]  + SymbolResolver integration (unified alias system),
+|   |   |                                              RestartWorkerAsync, OnTerminalStatusChanged,
 |   |   |                                              GetEnabledTerminalIds, StopTerminalAsync,
-|   |   |                                              CheckSymbolsAsync (symbol_map + worker),
-|   |   |                                              CalcProfitAsync (MT5 OrderCalcProfit)
-|   |   +-- WorkerProcess.cs      ~390L  [Phase 9.M] TCP клиент к Python worker + CalcLeverageAsync,
-|   |                                                  CheckSymbolsAsync, CalcProfitAsync
+|   |   |                                              CheckSymbolsAsync (resolver + round-trip keys),
+|   |   |                                              CalcProfitAsync (MT5 OrderCalcProfit),
+|   |   |                                              CacheTerminalSymbolsAsync (GET_ALL_SYMBOLS on connect),
+|   |   |                                              GetSymbolResolver() accessor,
+|   |   |                                              SymbolMapper [Obsolete] (kept for reference)
+|   |   +-- WorkerProcess.cs      ~455L  [Phase 10]  TCP клиент к Python worker + CalcLeverageAsync,
+|   |                                                  CheckSymbolsAsync, CalcProfitAsync,
+|   |                                                  GetAllSymbolNamesAsync (terminal symbol cache)
 |   |
 |   |-- Engine/
+|   |   |-- SymbolResolver.cs     ~297L  [Phase 10]  NEW: Unified canonical↔broker symbol mapping.
+|   |   |                                              Sources: cost_model_v2 aliases, per-terminal symbol_map,
+|   |   |                                              terminal symbol cache (from GET_ALL_SYMBOLS).
+|   |   |                                              ToBroker(canonical, terminalId),
+|   |   |                                              ToCanonical(broker, terminalId),
+|   |   |                                              GetVariants(), CacheTerminalSymbols(),
+|   |   |                                              ExportAliasTable() for Python worker
 |   |   |-- StateManager.cs     ~1737L  [Phase 10]  + daemon_state table (key-value store),
 |   |   |                                              LoadPauseState/SavePauseState (pause persistence),
 |   |   |                                              strategy_registry, DeleteTerminalData,
@@ -70,8 +83,9 @@ D:\trading-daemon\
 |   |   |                                              Gate 11: Same Symbol Per Strategy,
 |   |   |                                              Gate 12: R-cap (daily R-budget per strategy,
 |   |   |                                                tri-state: auto/ON/OFF from dashboard)
-|   |   |-- RCalc.cs              ~80L   [Phase 9.R] NEW: R-result calculator (TP→+tp_r,
-|   |   |                                              SL→-1.0R, SL+protector→lock_r)
+|   |   |-- RCalc.cs              ~92L   [Phase 10]  R-result calculator (TP→+tp_r,
+|   |   |                                              SL→-1.0R, SL+protector→lock_r),
+|   |   |                                              uses original sl_dist (not current) for trail strategies
 |   |   |-- LotCalculator.cs      ~140L  [Phase 9.M] Dual-mode: MT5 CalcProfit (preferred) / tick math (fallback),
 |   |   |                                              loss1Lot parameter, CalcMethod tracking
 |   |   |-- NewsService.cs       ~380L   [Phase 9.P] Календарь + IsBlocked (minImpact gate) +
@@ -134,7 +148,28 @@ D:\trading-daemon\
 |   |                                                   HandleGetTerminalsAsync (non-blocking),
 |   |                                                   batch GetAllProfiles, news pre-computation,
 |   |                                                   leverage persistence (restore from DB on startup),
-|   |                                                   virtual margin close with effective leverage
+|   |                                                   virtual margin close with effective leverage,
+|   |                                                   **Backtest partial** (~851L): bt_run (sizing filter +
+|   |                                                   risk_factor passthrough), bt_download, bt_data_coverage,
+|   |                                                   bt_get_cost_model (alias lookup via SymbolResolver),
+|   |                                                   bt_get_result, bt_cancel, progress broadcast
+|   |
+|   |-- Tester/                           [Phase 10]
+|   |   |-- BacktestEngine.cs     ~704L  [Phase 10]  Replay engine: loads bars from BarsHistoryDb,
+|   |   |                                              feeds strategy process via TCP, collects trades.
+|   |   |                                              Sizing filter (enabled symbols only),
+|   |   |                                              SizingFactors from btConfig for risk_factor,
+|   |   |                                              cost model resolution via CostModelLoader,
+|   |   |                                              R-calc with original sl_dist for trails
+|   |   |-- BacktestExecutor.cs   ~551L  [Phase 10]  Trade executor: balance tracking, equity curve,
+|   |   |                                              per-trade metrics (R, MAE, MFE, duration),
+|   |   |                                              commission + spread/slippage cost model,
+|   |   |                                              SizingFactors field in BacktestConfig
+|   |   |-- CostModelLoader.cs    ~386L  [Phase 9.M] Loads cost_model_v2.json, resolves spread/slippage
+|   |   |                                              per symbol. Alias fallback (ResolveCanonical),
+|   |   |                                              strip algorithm for broker name variants
+|   |   +-- BarsHistoryDb.cs      ~644L  [Phase 9.M] SQLite storage for historical bars per source/symbol/tf.
+|   |                                                  Bulk insert, date range queries, coverage tracking
 |   |
 |   |-- Models/
 |   |   +-- Models.cs            ~130L   [Phase 9]   Position, AccountInfo, Bar, Deal, InstrumentCard + Margin1Lot
@@ -155,6 +190,9 @@ D:\trading-daemon\
 |   |           |-- sizing.js            [Phase 10] Sizing table, tier filter, bulk actions
 |   |           |-- virtual.js           [Phase 10] Virtual equity chart, stats, export
 |   |           |-- log.js               [Phase 10] Event log with filters
+|   |           |-- backtest.js   ~793L  [Phase 10] Tester UI: data coverage, download, run,
+|   |           |                                    progress, results display, cost model with alias,
+|   |           |                                    sizing feedback in log (bt_run handler)
 |   |           +-- trade-chart.js       [Phase 10] Trade chart modal (TMM-style)
 |   |
 |   +-- Data/
@@ -195,11 +233,14 @@ D:\trading-daemon\
 |       +-- config.json             8L   [Phase 6]   Параметры test_strategy
 |
 |-- workers/
-|   |-- mt5_worker.py            ~870L   [Phase 9.M] + order_calc_margin -> margin_1lot
+|   |-- mt5_worker.py           ~1126L   [Phase 10]  + order_calc_margin -> margin_1lot
 |   |                                                  + auto-reconnect после 3 heartbeat errors
 |   |                                                  + CALC_LEVERAGE (auto-discovery, fuzzy resolve)
-|   |                                                  + CHECK_SYMBOLS (alias table, suffix variations)
+|   |                                                  + CHECK_SYMBOLS (alias table, suffix variations,
+|   |                                                    reverse alias lookup via _ALIAS_REVERSE)
 |   |                                                  + CALC_PROFIT (OrderCalcProfit for cross/JPY/metals/indices)
+|   |                                                  + GET_ALL_SYMBOLS (terminal symbol cache for SymbolResolver)
+|   |                                                  + COPY_RATES_RANGE (bulk bar download for backtester)
 |   +-- probe_terminal.py          55L   [Phase 7]   Автообнаружение MT5 терминалов
 |
 |-- test_worker.py                       [Phase 1]   Утилита тестирования worker
@@ -1009,6 +1050,29 @@ Phase 10: Dashboard Modularization + Global Pause + Telegram Overhaul -- done
    [done] Telegram /settings                    -- pause state, mute state, heartbeat interval, terminal modes
    [done] Telegram /heartbeat                   -- conversational input (pending command state),
                                                    HandlePendingInput, ApplyHeartbeat, 0-24h range
+   --- Phase 10b: SymbolResolver + Backtester fixes (done, 04.03.2026) ---
+   [done] R Calc fix (trail strategies)           -- RCalc, BacktestExecutor, Reconciler, VirtualTracker:
+                                                   use original sl_dist (entry - initial SL) not current SL
+                                                   for R-result calculation. Trail strategies no longer show
+                                                   inflated R values (e.g. 3.8R → correct 1.9R)
+   [done] SymbolResolver (unified mapping)        -- replaces 3 separate systems:
+                                                   (1) ConnectorManager.SymbolMapper (config symbol_map),
+                                                   (2) CostModelLoader._variantToCanonical (alias resolver),
+                                                   (3) mt5_worker.py SYMBOL_ALIASES (Python hardcode).
+                                                   Single SymbolResolver.cs: cost_model aliases + per-terminal
+                                                   symbol_map + terminal symbol cache (GET_ALL_SYMBOLS on connect).
+                                                   ToBroker()/ToCanonical() used everywhere.
+                                                   CheckSymbolsAsync returns original input keys (round-trip).
+                                                   Python: reverse alias lookup (_ALIAS_REVERSE) fixes
+                                                   DE40→DAX40 resolution in CHECK_SYMBOLS
+   [done] Sizing → Tester integration             -- backtester reads sizing table, filters disabled symbols,
+                                                   passes risk_factor via BacktestConfig.SizingFactors.
+                                                   bt_run response includes sizing_applied, sizing_disabled,
+                                                   sizing_factors. UI shows sizing feedback in log.
+                                                   ignore_sizing flag for override
+   [done] Cost model alias in Tester UI           -- HandleBtGetCostModel sends aliases dict via SymbolResolver,
+                                                   getCost() in backtest.js tries alias fallback (DAX40→DE40)
+   [done] GitHub repository                       -- RATM4E/trading-daemon, SSH key, CI-ready
    --- Testing (current) ---
    [ ] Virtual Trading на live данных -> набор статистики 1-2 недели
    [ ] Сравнить virtual P&L с бэктестом
@@ -1032,7 +1096,7 @@ Phase 10+: После стабильной торговли
    [ ] Import/Export sizing между терминалами
 ```
 
-**TOTAL**: ~19,500+ строк кода, 183+ тестов
+**TOTAL**: ~26,900+ строк кода
 
 ---
 
@@ -1047,8 +1111,9 @@ Phase 10+: После стабильной торговли
 5. **Phase 9.P Dashboard Polish II** -- сделано (trade chart 5 fixes, discovery WMI+probe, drag handles, news filtering, strategy folders)
 6. **Phase 9.O Dashboard Optimization** -- сделано (r_cap immediate extraction, async get_terminals, batch profiles, dupe elimination, news pre-computation)
 7. **Phase 10 Dashboard + Pause + Telegram** -- сделано (modularization, Global Pause Gate 0, Telegram keyboard UI, /pause /resume /settings /heartbeat)
-8. **Virtual Testing на live данных** -- набрать статистику 1-2 недели (ТЕКУЩИЙ ЭТАП)
-8. **Сравнить virtual P&L с бэктестом** -- совпадают ли entry points, правильно ли работают параметры
+8. **Phase 10b SymbolResolver + Backtester** -- сделано (unified symbol mapping, R calc fix for trails, sizing→tester integration, cost model alias UI, GitHub repo)
+9. **Virtual Testing на live данных** -- набрать статистику 1-2 недели (ТЕКУЩИЙ ЭТАП)
+10. **Сравнить virtual P&L с бэктестом** -- совпадают ли entry points, правильно ли работают параметры
 9. **Full Auto на демо-счёте** -- первые реальные ордера, проверка execution quality
 10. **Phase 9.5** -- security перед VPS деплоем
 11. **Full Auto на prop** -- финальный шаг
@@ -1084,7 +1149,11 @@ Phase 10+: После стабильной торговли
 
 **Global Pause** -- Gate 0 в RiskManager, первая проверка перед всеми 12 гейтами. Блокирует новые входы на всех терминалах, но стратегии продолжают работать, SL management активен, виртуальная торговля не затрагивается. Timed pause с auto-expire. Персистентна через daemon_state (key-value в SQLite). Управление: dashboard кнопка/модалка, Telegram /pause /resume.
 
-**Symbol availability** определяется terminal-native через CHECK_SYMBOLS -- независимо от запущенных стратегий или загруженных баров. Alias table покрывает 16 канонических символов с вариантами брокеров + suffix variations для нестандартных именований.
+**Symbol resolution** через единый SymbolResolver (canonical ↔ broker). Три источника: (1) cost_model_v2.json `_aliases` (800+ вариантов, 40 инструментов), (2) per-terminal `symbol_map` из config.json (explicit overrides), (3) terminal symbol cache (GET_ALL_SYMBOLS при подключении). ToBroker() для отправки в MT5, ToCanonical() для получения из MT5. CheckSymbolsAsync возвращает результаты с оригинальными ключами вызывающего (round-trip), избегая каноникализации. Заменяет три старые системы: SymbolMapper, CostModelLoader._variantToCanonical, mt5_worker SYMBOL_ALIASES.
+
+**Backtester** — полный replay engine в daemon (Tester/ directory). BacktestEngine загружает бары из BarsHistoryDb, запускает стратегию как отдельный Python процесс через TCP, собирает трейды через BacktestExecutor. Sizing integration: при запуске теста читается sizing таблица, disabled символы отфильтровываются, risk_factor передаётся через BacktestConfig.SizingFactors. Cost model (spread + slippage) резолвится через CostModelLoader с alias fallback. UI (backtest.js) показывает coverage данных, прогресс, результаты с R-метриками, equity curve.
+
+**R-calc для trail strategies** — критический фикс: при расчёте R-результата закрытой сделки используется **original sl_dist** (расстояние от entry до начального SL), а не текущий SL после trail. Без этого trail с SL в плюсе давал раздутые R (3.8R вместо 1.9R). Затрагивает RCalc.cs, BacktestExecutor, Reconciler, VirtualTracker — все 4 точки расчёта R.
 
 ---
 
@@ -1097,10 +1166,12 @@ Phase 10+: После стабильной торговли
 - Per-symbol sizing check (symbol_sizing -> enabled, risk_factor, tier)
 - Расчёт лота (LotCalculator, dual-mode: MT5 CalcProfit preferred / tick math fallback, per-symbol riskMoney)
 - 13 проверок риска (RiskManager, Gate 0: Global Pause, timezone-aware, Gate 2 soft/hard DD, Gate 5/6 effective leverage, Gate 11 per-strategy, Gate 12 R-cap, virtual support)
-- R-cap tracking (RCalc → daily_r accumulator, protector_fired flag, tri-state dashboard override)
+- R-cap tracking (RCalc → daily_r accumulator, protector_fired flag, tri-state dashboard override, **original sl_dist for trails**)
 - Effective leverage per asset class (CALC_LEVERAGE → SQLite persistence, conservative defaults, 3-level fallback)
 - Warmup gate (suppress ENTER on first tick after start -- prevent stale-data signals)
 - Исполнение ордеров -- real (ConnectorManager -> WorkerProcess -> MT5, TP pass-through) или **virtual** (HandleVirtualEnterAsync -> DB)
+- **Symbol resolution** -- SymbolResolver (canonical ↔ broker, 3 sources: cost_model aliases + config symbol_map + terminal cache)
+- **Backtester** -- replay engine (BacktestEngine + BacktestExecutor, sizing integration, cost model, R-metrics)
 - **VirtualTracker** -- SL/TP мониторинг для виртуальных позиций (gap execution, trade snapshots)
 - Запись состояния (StateManager, включая symbol_sizing + tier, virtual_balance/equity/snapshots, daily_dd_mode, daily_r, r_cap_on/limit)
 - Мониторинг DD (ActiveProtection, timezone-aware, soft/hard mode)
@@ -1118,4 +1189,4 @@ Phase 10+: После стабильной торговли
 - Auto-discovery стратегий (scan -> register -> enable/disable -> magic allocation -> **r_cap config cache**)
 - CHECK_SYMBOLS -- terminal-native symbol availability (alias table)
 
-Стратегия **не знает** про лоты, маржу, DD лимиты, news calendar, 3SL guard, timezone, trading hours, position sizing, RiskFactor, asset classes, magic numbers, symbol availability, **virtual vs real mode**, tier, daily DD mode, R-cap enforcement, **per-class leverage**, **OrderCalcProfit**. Она знает только бары и свои позиции. Стратегия объявляет `r_cap` в конфиге и передаёт `tp_r`/`protector_lock_r` в signal_data -- демон сам считает R-результат и применяет бюджет.
+Стратегия **не знает** про лоты, маржу, DD лимиты, news calendar, 3SL guard, timezone, trading hours, position sizing, RiskFactor, asset classes, magic numbers, symbol availability, **virtual vs real mode**, tier, daily DD mode, R-cap enforcement, **per-class leverage**, **OrderCalcProfit**, **symbol aliases/mapping**. Она знает только бары и свои позиции. Стратегия объявляет `r_cap` в конфиге и передаёт `tp_r`/`protector_lock_r` в signal_data -- демон сам считает R-результат и применяет бюджет.

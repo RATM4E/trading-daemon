@@ -203,11 +203,14 @@ bool available = _symbolResolver.IsAvailable(s.Symbol, terminal);
 ## Порядок внедрения
 
 1. ✅ SymbolResolver.cs — создан
-2. Program.cs — инициализация
-3. ConnectorManager — замена SymbolMapper на SymbolResolver
-4. mt5_worker.py — SET_ALIASES + фикс CHECK_SYMBOLS + GET_ALL_SYMBOLS
-5. DashboardServer — передать resolver в sizing и backtest
-6. BacktestEngine — фильтр по sizing.enabled (bug 2)
-7. Убрать SYMBOL_ALIASES из mt5_worker.py
-8. Убрать старый SymbolMapper class (или deprecated)
-9. Тесты
+2. ✅ Program.cs — инициализация (cost_model aliases + per-terminal symbol_map)
+3. ✅ ConnectorManager — замена SymbolMapper на SymbolResolver (ToBroker/ToCanonical everywhere)
+4. ✅ mt5_worker.py — reverse alias fix (_ALIAS_REVERSE) + GET_ALL_SYMBOLS command
+5. ✅ WorkerProcess.cs — GetAllSymbolNamesAsync
+6. ✅ CacheTerminalSymbolsAsync — заполнение кэша при подключении
+7. ✅ CheckSymbolsAsync — round-trip keys (original input → result)
+8. ✅ DashboardServer_Backtest — alias lookup в HandleBtGetCostModel
+9. ✅ BacktestEngine — фильтр по sizing.enabled + SizingFactors
+10. ✅ Старый SymbolMapper — [Obsolete], не используется
+11. ⚠️ SET_ALIASES (Python получает таблицу из C#) — отложено, Python _ALIAS_REVERSE работает
+12. ⚠️ Убрать SYMBOL_ALIASES хардкод из Python — отложено (нужен SET_ALIASES сначала)

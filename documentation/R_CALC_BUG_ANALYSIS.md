@@ -1,5 +1,7 @@
 # R Calculation Bug — Analysis & Fix
 
+**Status: FIXED** (04.03.2026) — committed to GitHub
+
 ## Summary
 
 R result (risk-multiple outcome) считается неправильно в **двух** местах:
