@@ -140,11 +140,13 @@ class Strategy:
         # Trail scans last N tick-bars covering ~90 min (same window as 3×M30)
         self._trail_scan = max(3, 5400 // self._tick_sec)
 
-        self._st   = {s: SymState() for s in self.syms}
-        self._atr  = {s: 0.0 for s in self.syms}
-        self._last = {s: 0 for s in self.syms}
-        self._bars = {s: [] for s in self.syms}
-        self._pos  = {}
+        self._st      = {s: SymState() for s in self.syms}
+        self._atr     = {s: 0.0 for s in self.syms}
+        self._last    = {s: 0 for s in self.syms}   # last CLOSED H12 bar ts
+        self._last_m5 = {s: 0 for s in self.syms}   # last processed tick-TF bar ts
+        self._forming = {s: None for s in self.syms} # current forming H12 bucket
+        self._bars    = {s: [] for s in self.syms}
+        self._pos     = {}
 
     # ── interface ──────────────────────────────────────────────────
 
@@ -172,7 +174,12 @@ class Strategy:
     def save_state(self):
         ss = {s: st.__dict__.copy() for s, st in self._st.items()}
         pp = {str(t): pt.__dict__.copy() for t, pt in self._pos.items()}
-        return {"ss": ss, "pp": pp, "last": dict(self._last), "atr": dict(self._atr)}
+        return {
+            "ss": ss, "pp": pp,
+            "last": dict(self._last), "atr": dict(self._atr),
+            "last_m5": dict(self._last_m5),
+            "forming": {s: v for s, v in self._forming.items()},
+        }
 
     def restore_state(self, state):
         if not state:
@@ -187,42 +194,100 @@ class Strategy:
             if s in self._last: self._last[s] = v
         for s, v in state.get("atr", {}).items():
             if s in self._atr: self._atr[s] = v
+        for s, v in state.get("last_m5", {}).items():
+            if s in self._last_m5: self._last_m5[s] = v
+        for s, v in state.get("forming", {}).items():
+            if s in self._forming: self._forming[s] = v
 
     # ── tick-TF -> H12 resampling ───────────────────────────────────
 
     def _resample(self, sym, raw):
-        """Aggregate tick-TF bars into H12 buckets. Returns True if new H12 bar closed."""
-        bk = {}
-        for b in raw:
-            t, o, h, lo, c = b["time"], b["open"], b["high"], b["low"], b["close"]
-            k = (t // self.tf) * self.tf
-            if k not in bk:
-                bk[k] = [o, h, lo, c, k]
-            else:
-                r = bk[k]
-                if h > r[1]: r[1] = h
-                if lo < r[2]: r[2] = lo
-                r[3] = c
-        if not bk:
+        """Incrementally aggregate tick-TF bars into H12 buckets.
+
+        On each tick only processes bars newer than _last_m5[sym] cursor —
+        typically 1-2 bars after delta protocol. O(new_bars) instead of O(all_bars).
+
+        Bootstraps from full buffer on first call (or after state restore with
+        empty history) so warmup works correctly.
+
+        Returns True if at least one new H12 bar closed this tick.
+        """
+        if not raw:
             return False
 
-        # Forming bar = bucket containing the last tick bar. Exclude from completed.
-        forming = (raw[-1]["time"] // self.tf) * self.tf
-        done = sorted([v for k2, v in bk.items() if k2 != forming], key=lambda x: x[4])
+        last_m5 = self._last_m5[sym]
 
-        # Merge new completed bars into history
-        existing_ts = {b[4] for b in self._bars[sym]}
-        for bar in done:
-            if bar[4] not in existing_ts:
-                self._bars[sym].append(bar)
+        # ── Bootstrap: first call has full buffer, no cursor yet ──────────
+        # Process ALL bars to build initial H12 history and set forming bar.
+        if last_m5 == 0:
+            bk = {}
+            for b in raw:
+                t, o, h, lo, c = b["time"], b["open"], b["high"], b["low"], b["close"]
+                k = (t // self.tf) * self.tf
+                if k not in bk:
+                    bk[k] = [o, h, lo, c, k]
+                else:
+                    r = bk[k]
+                    if h > r[1]: r[1] = h
+                    if lo < r[2]: r[2] = lo
+                    r[3] = c
 
-        # Trim to reasonable depth
-        mx = self.atr_n + 50
-        if len(self._bars[sym]) > mx:
-            self._bars[sym] = self._bars[sym][-mx:]
+            if not bk:
+                return False
 
-        # Check if newest completed bar is truly new
-        if self._bars[sym]:
+            forming_k = (raw[-1]["time"] // self.tf) * self.tf
+            done = sorted(
+                [v for k2, v in bk.items() if k2 != forming_k],
+                key=lambda x: x[4]
+            )
+
+            mx = self.atr_n + 50
+            self._bars[sym] = done[-mx:] if len(done) > mx else done
+            self._forming[sym] = bk.get(forming_k)
+            self._last_m5[sym] = raw[-1]["time"]
+
+            # ATR + new-bar check
+            if self._bars[sym]:
+                lt = self._bars[sym][-1][4]
+                if lt > self._last[sym]:
+                    self._last[sym] = lt
+                    self._calc_atr(sym)
+                    return True
+            return False
+
+        # ── Incremental: only new bars since last processed ───────────────
+        new_bars = [b for b in raw if b["time"] > last_m5]
+        if not new_bars:
+            return False
+
+        self._last_m5[sym] = new_bars[-1]["time"]
+        forming = self._forming[sym]
+        new_closed = False
+
+        for b in new_bars:
+            t, o, h, lo, c = b["time"], b["open"], b["high"], b["low"], b["close"]
+            k = (t // self.tf) * self.tf
+
+            if forming is None:
+                # No forming bar yet — start one
+                forming = [o, h, lo, c, k]
+            elif k == forming[4]:
+                # Same H12 bucket — extend
+                if h > forming[1]: forming[1] = h
+                if lo < forming[2]: forming[2] = lo
+                forming[3] = c
+            else:
+                # New bucket started → previous forming bar is now closed
+                self._bars[sym].append(forming)
+                mx = self.atr_n + 50
+                if len(self._bars[sym]) > mx:
+                    del self._bars[sym][0]
+                forming = [o, h, lo, c, k]
+                new_closed = True
+
+        self._forming[sym] = forming
+
+        if new_closed and self._bars[sym]:
             lt = self._bars[sym][-1][4]
             if lt > self._last[sym]:
                 self._last[sym] = lt
