@@ -402,6 +402,7 @@ public partial class DashboardServer : IDisposable
             {
                 "get_terminals"   => await HandleGetTerminalsAsync(),
                 "get_positions"   => await HandleGetPositions(doc.RootElement, ct),
+                "get_pending_orders" => HandleGetPendingOrders(doc.RootElement),
                 "get_strategies"  => HandleGetStrategies(),
                 "get_events"      => HandleGetEvents(doc.RootElement),
                 "start_strategy"  => await HandleStartStrategy(doc.RootElement, ct),

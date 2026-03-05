@@ -1,16 +1,65 @@
 // =====================================================================
 //  Tab: Positions (global view across all terminals)
 //  Phase 10: added Opened column with UTC timestamps
+//  Phase 10+: added Pending Orders section (top)
 // =====================================================================
 
-var PositionsTab = ({ positions, send, onTradeChart }) => {
+var PendingOrdersSection = ({ pendingOrders }) => {
+  if (!pendingOrders || pendingOrders.length === 0) return null;
+  return (
+    <div className="mb-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Pending Orders</span>
+        <span className="text-xs text-zinc-600">({pendingOrders.length})</span>
+      </div>
+      <table className="w-full text-xs"><thead><tr className="text-zinc-500 border-b border-zinc-800">
+        <th className="text-left py-1.5 px-2 font-normal">Terminal</th>
+        <th className="text-left py-1.5 px-2 font-normal">Symbol</th>
+        <th className="text-left py-1.5 px-2 font-normal">Dir</th>
+        <th className="text-right py-1.5 px-2 font-normal">Lot</th>
+        <th className="text-right py-1.5 px-2 font-normal">Entry</th>
+        <th className="text-right py-1.5 px-2 font-normal">Current</th>
+        <th className="text-right py-1.5 px-2 font-normal">SL</th>
+        <th className="text-right py-1.5 px-2 font-normal">Expiry</th>
+        <th className="text-left py-1.5 px-2 font-normal">Strategy</th>
+      </tr></thead>
+      <tbody>{pendingOrders.map(p => (
+        <tr key={`${p.terminal}-${p.ticket}`} className="border-b border-zinc-800/40 hover:bg-zinc-800/20">
+          <td className="py-1.5 px-2 font-mono text-zinc-400">{p.terminal}</td>
+          <td className="py-1.5 px-2 font-mono text-zinc-200 font-medium">
+            {p.is_virtual && <span className="text-purple-400 text-[10px] mr-1 font-bold">[V]</span>}
+            {p.symbol}
+          </td>
+          <td className="py-1.5 px-2"><Badge color={p.dir === "LONG" ? "green" : "red"}>{p.dir}</Badge></td>
+          <td className="py-1.5 px-2 text-right font-mono text-zinc-300">{p.lot}</td>
+          <td className="py-1.5 px-2 text-right font-mono text-amber-300">{p.entry}</td>
+          <td className="py-1.5 px-2 text-right font-mono text-zinc-400">{p.current > 0 ? p.current : "—"}</td>
+          <td className="py-1.5 px-2 text-right font-mono text-zinc-500">{p.sl > 0 ? p.sl : "—"}</td>
+          <td className="py-1.5 px-2 text-right font-mono">
+            <span className={p.expiry === "GTC" ? "text-zinc-500" : "text-amber-400"}>{p.expiry}</span>
+          </td>
+          <td className="py-1.5 px-2 text-blue-400">{p.strategy}</td>
+        </tr>
+      ))}</tbody></table>
+    </div>
+  );
+};
+
+var PositionsTab = ({ positions, pendingOrders, send, onTradeChart }) => {
   const [filter, setFilter] = useState("all");
   const filtered = filter === "all" ? positions : filter === "virtual" ? positions.filter(p => p.isVirtual) : positions.filter(p => !p.isVirtual);
-  if (positions.length === 0) return <div className="text-center text-zinc-600 py-16">No open positions</div>;
+  if (positions.length === 0 && (!pendingOrders || pendingOrders.length === 0))
+    return <div className="text-center text-zinc-600 py-16">No open positions</div>;
   const handleClose = (terminal, ticket) => { if (confirm(`Close #${ticket}?`)) send({ cmd: 'close_position', terminal, ticket }); };
   const totalPnl = filtered.reduce((s, p) => s + (p.pnl || 0), 0);
   const hasVirtual = positions.some(p => p.isVirtual);
   return (<div>
+    <PendingOrdersSection pendingOrders={pendingOrders} />
+    {positions.length > 0 && pendingOrders && pendingOrders.length > 0 &&
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Open Positions</span>
+        <span className="text-xs text-zinc-600">({filtered.length})</span>
+      </div>}
     {hasVirtual && <div className="flex gap-1 mb-3">
       {["all", "real", "virtual"].map(f => (
         <button key={f} onClick={() => setFilter(f)} className={`px-2 py-1 text-xs rounded ${filter === f ? "bg-zinc-700 text-zinc-200" : "text-zinc-500 hover:text-zinc-300"}`}>

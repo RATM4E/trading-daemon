@@ -162,6 +162,9 @@ class Program
             risk.SetVirtualTracker(virtualTracker);
             protection.SetVirtualTracker(virtualTracker, barsCache);
 
+            // Pending order manager (live MT5 pending lifecycle)
+            var pendingMgr = new Engine.PendingOrderManager(state, connector, alerts, log);
+
             // 9c. Backtest: BarsHistoryDb + CostModelLoader
             var barsHistoryDbPath = Path.Combine(dataDir, config.BarsHistoryDb);
             using var barsHistoryDb = new BarsHistoryDb(barsHistoryDbPath);
@@ -206,6 +209,7 @@ class Program
             var scheduler = new Scheduler(config, connector, strategyMgr, state,
                                           risk, barsCache, alerts, log);
             scheduler.SetVirtualTracker(virtualTracker);
+            scheduler.SetPendingOrderManager(pendingMgr);
 
             // 12. Auto-start strategies (from config)
             await strategyMgr.AutoStartAsync(cts.Token);
@@ -304,6 +308,14 @@ class Program
 
                     // Phase 9.V: VirtualTracker — check SL/TP for virtual positions
                     await virtualTracker.TickAsync(cts.Token);
+
+                    // Pending orders: decrement expiry + reconcile vs MT5
+                    foreach (var termId in connector.GetAllTerminalIds())
+                    {
+                        if (!connector.IsConnected(termId)) continue;
+                        try { await pendingMgr.TickAsync(termId, cts.Token); }
+                        catch (Exception ex) { log.Warn($"[PendingMgr] {termId}: {ex.Message}"); }
+                    }
 
                     // Phase 10: Continuous DD monitor — check realized+floating vs limit
                     await scheduler.MonitorDailyDDAsync(cts.Token);

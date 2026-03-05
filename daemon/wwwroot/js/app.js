@@ -6,6 +6,7 @@ function useWs() {
   const [connected, setConnected] = useState(false);
   const [terminals, setTerminals] = useState([]);
   const [positions, setPositions] = useState([]);
+  const [pendingOrders, setPendingOrders] = useState([]);
   const [strategies, setStrategies] = useState({ discovered: [], running: [] });
   const [logs, setLogs] = useState([]);
   const [terminalDetail, setTerminalDetail] = useState(null);
@@ -22,6 +23,7 @@ function useWs() {
       setPauseState({ paused: !!msg.globalPaused, pauseUntil: msg.pauseUntil || null, pauseReason: msg.pauseReason || null });
     };
     const onPositions = (msg) => setPositions(msg.data || []);
+    const onPendingOrders = (msg) => setPendingOrders(msg.pending_orders || []);
     const onStrategies = (msg) => setStrategies(msg);
     const onEvents = (msg) => setLogs(msg.data || []);
     const onTerminalDetail = (msg) => {
@@ -59,6 +61,7 @@ function useWs() {
 
     wsManager.on('connection', onConn); wsManager.on('cmd:terminals', onTerminals);
     wsManager.on('cmd:positions', onPositions); wsManager.on('cmd:strategies', onStrategies);
+    wsManager.on('cmd:pending_orders', onPendingOrders);
     wsManager.on('cmd:events', onEvents); wsManager.on('cmd:terminal_detail', onTerminalDetail);
     wsManager.on('cmd:get_terminal_detail', onTerminalDetail);  // catch backend errors (cmd echoed as-is)
     wsManager.on('cmd:discover_terminals', onDiscovered);
@@ -79,6 +82,7 @@ function useWs() {
     return () => {
       wsManager.off('connection', onConn); wsManager.off('cmd:terminals', onTerminals);
       wsManager.off('cmd:positions', onPositions); wsManager.off('cmd:strategies', onStrategies);
+      wsManager.off('cmd:pending_orders', onPendingOrders);
       wsManager.off('cmd:events', onEvents); wsManager.off('cmd:terminal_detail', onTerminalDetail);
       wsManager.off('cmd:get_terminal_detail', onTerminalDetail);
       wsManager.off('cmd:discover_terminals', onDiscovered);
@@ -102,13 +106,15 @@ function useWs() {
   useEffect(() => {
     if (!connected) return;
     const p = setInterval(() => wsManager.send({ cmd: 'get_positions' }), 5000);
+    const pd = setInterval(() => wsManager.send({ cmd: 'get_pending_orders' }), 5000);
     const t = setInterval(() => wsManager.send({ cmd: 'get_terminals' }), 10000);
-    return () => { clearInterval(p); clearInterval(t); };
+    return () => { clearInterval(p); clearInterval(pd); clearInterval(t); };
   }, [connected]);
 
   const send = useCallback((data) => wsManager.send(data), []);
   const refresh = useCallback(() => {
     wsManager.send({ cmd: 'get_terminals' }); wsManager.send({ cmd: 'get_positions' });
+    wsManager.send({ cmd: 'get_pending_orders' });
     wsManager.send({ cmd: 'get_strategies' }); wsManager.send({ cmd: 'get_events', filter: { limit: 100 } });
   }, []);
   const openDetail = useCallback((termId) => { setTerminalDetail(null); wsManager.send({ cmd: 'get_terminal_detail', terminal: termId }); }, []);
@@ -116,7 +122,7 @@ function useWs() {
   const discover = useCallback(() => { setDiscoveredTerminals(null); wsManager.send({ cmd: 'discover_terminals' }); }, []);
 
   return {
-    connected, terminals, positions, strategies, logs, terminalDetail, discoveredTerminals, pauseState,
+    connected, terminals, positions, pendingOrders, strategies, logs, terminalDetail, discoveredTerminals, pauseState,
     send, refresh, openDetail, closeDetail, discover
   };
 }
@@ -130,7 +136,7 @@ var TABS = [
 ];
 
 function App() {
-  const { connected, terminals, positions, strategies, logs, terminalDetail, discoveredTerminals, pauseState,
+  const { connected, terminals, positions, pendingOrders, strategies, logs, terminalDetail, discoveredTerminals, pauseState,
     send, refresh, openDetail, closeDetail, discover } = useWs();
   const [tab, setTab] = useState("terminals");
   const [showEmergency, setShowEmergency] = useState(false);
@@ -222,7 +228,7 @@ function App() {
       <div className="max-w-7xl mx-auto px-4 py-4">
         {tab === "terminals" && !detailTerminal && <TerminalsTab terminals={terminals} strategies={strategies} send={send} onOpenDetail={handleOpenDetail} onDiscover={handleDiscover} onGoToStrategies={() => setTab("strategies")} />}
         {tab === "terminals" && detailTerminal && <ErrorBoundary><TerminalDetailView detail={terminalDetail} positions={positions} onClose={handleCloseDetail} send={send} onTradeChart={(t, ticket) => { setTradeChartTerminal(t); setTradeChartTicket(ticket); }} /></ErrorBoundary>}
-        {tab === "positions" && <PositionsTab positions={positions} send={send} onTradeChart={(t, ticket) => { setTradeChartTerminal(t); setTradeChartTicket(ticket); }} />}
+        {tab === "positions" && <PositionsTab positions={positions} pendingOrders={pendingOrders} send={send} onTradeChart={(t, ticket) => { setTradeChartTerminal(t); setTradeChartTicket(ticket); }} />}
         {tab === "strategies" && <StrategiesTab strategies={strategies} terminals={terminals} send={send} />}
         {tab === "sizing" && <SizingTab terminals={terminals} strategies={strategies} send={send} />}
         {tab === "virtual" && <VirtualTab terminals={terminals} send={send} onTradeChart={(t, ticket) => { setTradeChartTerminal(t); setTradeChartTicket(ticket); }} />}

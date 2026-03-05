@@ -277,6 +277,29 @@ public partial class StateManager : IDisposable
             key     TEXT PRIMARY KEY,
             value   TEXT NOT NULL
         )");
+
+        // Pending orders (live MT5 + virtual simulation)
+        Exec(conn, @"
+        CREATE TABLE IF NOT EXISTS pending_orders (
+            ticket          INTEGER NOT NULL,
+            terminal_id     TEXT NOT NULL,
+            symbol          TEXT NOT NULL,
+            strategy        TEXT NOT NULL,
+            magic           INTEGER NOT NULL,
+            direction       TEXT NOT NULL,      -- 'BUY'/'SELL'
+            order_type      TEXT NOT NULL,      -- 'BUY_STOP'/'SELL_STOP'
+            volume          REAL NOT NULL,
+            entry_price     REAL NOT NULL,
+            sl              REAL NOT NULL,
+            tp              REAL NOT NULL DEFAULT 0,
+            bars_remaining  INTEGER NOT NULL DEFAULT -1,  -- -1 = GTC, >0 = counting down, 0 = expired
+            signal_data     TEXT,
+            is_virtual      INTEGER NOT NULL DEFAULT 0,
+            placed_at       TEXT NOT NULL,
+            status          TEXT NOT NULL DEFAULT 'open', -- 'open'/'filled'/'cancelled'/'expired'
+            closed_at       TEXT,
+            PRIMARY KEY (ticket, terminal_id)
+        )");
     }
 
     // ===================================================================

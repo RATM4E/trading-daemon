@@ -156,3 +156,23 @@ public class PositionMarginEntry
     [JsonPropertyName("swap")]       public double Swap { get; set; }
     [JsonPropertyName("price_open")] public double PriceOpen { get; set; }
 }
+
+/// <summary>Pending order from ORDERS_GET command.</summary>
+public class BrokerPendingOrder
+{
+    [JsonPropertyName("ticket")]        public long Ticket { get; set; }
+    [JsonPropertyName("symbol")]        public string Symbol { get; set; } = "";
+    [JsonPropertyName("type")]          public int Type { get; set; }   // MT5 order type int
+    [JsonPropertyName("volume")]        public double Volume { get; set; }
+    [JsonPropertyName("price_open")]    public double PriceOpen { get; set; }
+    [JsonPropertyName("sl")]            public double SL { get; set; }
+    [JsonPropertyName("tp")]            public double TP { get; set; }
+    [JsonPropertyName("price_current")] public double PriceCurrent { get; set; }
+    [JsonPropertyName("time_setup")]    public long TimeSetup { get; set; }
+    [JsonPropertyName("magic")]         public int Magic { get; set; }
+    [JsonPropertyName("comment")]       public string Comment { get; set; } = "";
+
+    // MT5 order type constants: 2=BUY_LIMIT, 3=SELL_LIMIT, 4=BUY_STOP, 5=SELL_STOP
+    public bool IsBuyStop  => Type == 4;
+    public bool IsSellStop => Type == 5;
+}

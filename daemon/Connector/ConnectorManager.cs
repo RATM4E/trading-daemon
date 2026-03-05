@@ -228,6 +228,27 @@ public class ConnectorManager : IDisposable
         return await worker.SendOrderAsync(request, ct);
     }
 
+    /// <summary>Get all pending (stop/limit) orders from MT5.</summary>
+    public async Task<List<Models.BrokerPendingOrder>> GetPendingOrdersAsync(
+        string terminalId, CancellationToken ct = default)
+    {
+        var worker = GetWorker(terminalId);
+        var resp = await worker.SendCommandAsync("ORDERS_GET", new Dictionary<string, object>(), ct);
+        if (!resp.IsOk || resp.Data == null) return new();
+
+        return JsonSerializer.Deserialize<List<Models.BrokerPendingOrder>>(
+            resp.Data.Value.GetRawText()) ?? new();
+    }
+
+    /// <summary>Cancel a pending order via TRADE_ACTION_REMOVE.</summary>
+    public async Task<WorkerResponse> DeletePendingOrderAsync(
+        string terminalId, long ticket, CancellationToken ct = default)
+    {
+        var worker = GetWorker(terminalId);
+        return await worker.SendCommandAsync("ORDER_DELETE",
+            new Dictionary<string, object> { ["ticket"] = ticket }, ct);
+    }
+
     /// <summary>Get deal history filtered by position ticket.</summary>
     public async Task<List<Deal>> GetHistoryDealsAsync(string terminalId, long positionTicket,
                                                         CancellationToken ct = default)

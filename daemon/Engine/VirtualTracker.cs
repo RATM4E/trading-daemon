@@ -48,6 +48,10 @@ public class VirtualTracker
     /// </summary>
     public async Task TickAsync(CancellationToken ct)
     {
+        // ── 1. Scan virtual pending orders ───────────────────────────────────
+        await CheckVirtualPendingAsync(ct);
+
+        // ── 2. Scan open virtual positions for SL/TP ─────────────────────────
         var virtualPositions = _state.GetOpenVirtualPositions();
         if (virtualPositions.Count == 0) return;
 
@@ -201,6 +205,150 @@ public class VirtualTracker
         _state.LogEvent("VIRTUAL_ORDER", pos.TerminalId, pos.Source,
             $"{emoji} VIRTUAL {closeReason} {pos.Symbol} @ {closePrice} P/L={pnl:+0.00;-0.00}",
             JsonSerializer.Serialize(new { ticket = pos.Ticket, closeReason, closePrice, pnl }));
+    }
+
+    // =================================================================
+    // Virtual Pending Orders
+    // =================================================================
+
+    /// <summary>
+    /// Check all open virtual pending orders for trigger conditions.
+    /// BUY_STOP: fires when bar High >= entry_price.
+    /// SELL_STOP: fires when bar Low  <= entry_price.
+    /// Gap fill: if bar opened beyond entry → fill at Open, not entry.
+    /// Expiry: decrement bars_remaining; cancel if reaches 0.
+    /// OCO: when one fires, cancel siblings with same signal_data.
+    /// </summary>
+    private async Task CheckVirtualPendingAsync(CancellationToken ct)
+    {
+        // Collect all terminals that have virtual pending orders
+        var allPending = _state.GetOpenVirtualPendingOrders();
+        if (allPending.Count == 0) return;
+
+        // Decrement expiry bars per terminal and collect expired tickets
+        var terminalIds = allPending.Select(p => p.TerminalId).Distinct().ToList();
+        var expired = new HashSet<long>();
+        foreach (var tid in terminalIds)
+        {
+            var expiredTickets = _state.DecrementPendingBars(tid, isVirtual: true);
+            foreach (var t in expiredTickets) expired.Add(t);
+        }
+
+        foreach (var rec in allPending)
+        {
+            try
+            {
+                // Expiry handled by DecrementPendingBars above
+                if (expired.Contains(rec.Ticket))
+                {
+                    _state.ClosePendingOrder(rec.Ticket, rec.TerminalId, "expired");
+                    _log.Info($"[V:{rec.TerminalId}] VIRTUAL PENDING EXPIRED ticket={rec.Ticket} " +
+                              $"{rec.OrderType} {rec.Symbol} @ {rec.EntryPrice}");
+                    _state.LogEvent("VIRTUAL_ORDER", rec.TerminalId, rec.Strategy,
+                        $"⌛ VIRTUAL PENDING EXPIRED {rec.Symbol} @ {rec.EntryPrice}",
+                        JsonSerializer.Serialize(new { ticket = rec.Ticket }));
+                    _ = _alerts.SendAsync("ORDER", rec.TerminalId,
+                        $"⌛ VIRTUAL PENDING EXPIRED {rec.Symbol} @ {rec.EntryPrice}", rec.Strategy);
+                    continue;
+                }
+
+                // Get last bar for the symbol
+                // Strategy TF stored in BarsCache — use any TF that has bars for this symbol
+                var bars = GetBarsForSymbol(rec.TerminalId, rec.Symbol);
+                if (bars == null || bars.Count == 0) continue;
+
+                var bar = bars[^1];
+                bool isBuyStop  = rec.OrderType == "BUY_STOP";
+                bool triggered  = isBuyStop
+                    ? bar.High >= rec.EntryPrice
+                    : bar.Low  <= rec.EntryPrice;
+
+                if (!triggered) continue;
+
+                // Gap fill: if bar opened beyond entry → fill at Open
+                double fillPrice = isBuyStop
+                    ? (bar.Open >= rec.EntryPrice ? bar.Open : rec.EntryPrice)
+                    : (bar.Open <= rec.EntryPrice ? bar.Open : rec.EntryPrice);
+
+                // Pre-cache symbol card for PnL
+                var symKey = $"{rec.TerminalId}:{rec.Symbol}";
+                if (!_symbolCache.ContainsKey(symKey))
+                {
+                    var symCard = await _connector.GetSymbolInfoAsync(rec.TerminalId, rec.Symbol, ct);
+                    if (symCard != null) _symbolCache[symKey] = symCard;
+                }
+
+                // Create virtual position
+                var posTicket = _state.NextVirtualTicket();
+                _state.SavePosition(new PositionRecord
+                {
+                    Ticket     = posTicket,
+                    TerminalId = rec.TerminalId,
+                    Symbol     = rec.Symbol,
+                    Direction  = rec.Direction,
+                    Volume     = rec.Volume,
+                    PriceOpen  = fillPrice,
+                    SL         = rec.SL,
+                    TP         = rec.TP,
+                    Magic      = rec.Magic,
+                    Source     = rec.Strategy,
+                    SignalData = rec.SignalData,
+                    OpenedAt   = DateTime.UtcNow.ToString("o"),
+                    IsVirtual  = true,
+                    Timeframe  = GetTimeframeForSymbol(rec.TerminalId, rec.Symbol),
+                });
+
+                _state.ClosePendingOrder(rec.Ticket, rec.TerminalId, "filled");
+
+                _log.Info($"[V:{rec.TerminalId}] VIRTUAL PENDING FILLED ticket={rec.Ticket} " +
+                          $"→ pos={posTicket} {rec.OrderType} {rec.Symbol} @ {fillPrice}");
+
+                _state.LogEvent("VIRTUAL_ORDER", rec.TerminalId, rec.Strategy,
+                    $"🟣 VIRTUAL PENDING FILLED {rec.Symbol} @ {fillPrice}",
+                    JsonSerializer.Serialize(new { pendingTicket = rec.Ticket, posTicket, fillPrice }));
+                _ = _alerts.SendAsync("ORDER", rec.TerminalId,
+                    $"🟣 VIRTUAL PENDING FILLED {rec.Symbol} @ {fillPrice}", rec.Strategy);
+
+                // OCO: cancel siblings
+                if (!string.IsNullOrEmpty(rec.SignalData))
+                {
+                    var ocoTickets = _state.GetOcoPendingTickets(
+                        rec.TerminalId, rec.SignalData, rec.Ticket);
+                    foreach (var ocoTicket in ocoTickets)
+                    {
+                        _state.ClosePendingOrder(ocoTicket, rec.TerminalId, "cancelled");
+                        _log.Info($"[V:{rec.TerminalId}] OCO cancel virtual ticket={ocoTicket}");
+                        _state.LogEvent("VIRTUAL_ORDER", rec.TerminalId, rec.Strategy,
+                            $"OCO CANCELLED virtual pending ticket={ocoTicket}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"[VirtualTracker] Pending check error ticket={rec.Ticket}: {ex.Message}");
+            }
+        }
+    }
+
+    // BarsCache lookup helpers for virtual pending (no TF stored on PendingOrderRecord)
+    private List<Daemon.Models.Bar>? GetBarsForSymbol(string terminalId, string symbol)
+    {
+        foreach (var tf in new[] { "M5", "M15", "M30", "H1", "H4", "D1" })
+        {
+            var bars = _barsCache.GetBars(terminalId, symbol, tf);
+            if (bars != null && bars.Count > 0) return bars;
+        }
+        return null;
+    }
+
+    private string GetTimeframeForSymbol(string terminalId, string symbol)
+    {
+        foreach (var tf in new[] { "M5", "M15", "M30", "H1", "H4", "D1" })
+        {
+            var bars = _barsCache.GetBars(terminalId, symbol, tf);
+            if (bars != null && bars.Count > 0) return tf;
+        }
+        return "H1";
     }
 
     // =================================================================

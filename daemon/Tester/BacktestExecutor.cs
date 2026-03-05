@@ -25,6 +25,7 @@ public class BacktestExecutor
     public int NextTicket { get; private set; } = -100;  // virtual tickets (negative)
 
     public List<BtPosition> OpenPositions { get; } = new();
+    public List<BtPendingOrder> PendingOrders { get; } = new();
     public List<BtTrade> ClosedTrades { get; } = new();
     public List<BtBlockedSignal> BlockedSignals { get; } = new();
     public List<BtEquitySnapshot> EquitySnapshots { get; } = new();
@@ -232,6 +233,121 @@ public class BacktestExecutor
         return closed;
     }
 
+    // ── Pending Orders ───────────────────────────────────────
+
+    /// <summary>
+    /// Register a pending stop order. Called when strategy sends ENTER_PENDING.
+    /// Ticket is assigned immediately (negative counter).
+    /// </summary>
+    public BtPendingOrder PlacePending(
+        StrategyAction action, long barTime, double lot, string strategy, int magic)
+    {
+        var ticket = NextTicket--;
+        var pending = new BtPendingOrder
+        {
+            Ticket        = ticket,
+            Symbol        = action.Symbol!,
+            Direction     = action.Direction!.ToUpperInvariant() == "LONG" ? "BUY" : "SELL",
+            OrderType     = action.Direction!.ToUpperInvariant() == "LONG" ? "BUY_STOP" : "SELL_STOP",
+            Volume        = lot,
+            EntryPrice    = action.EntryPrice!.Value,
+            SL            = action.SlPrice ?? 0,
+            TP            = action.TpPrice ?? 0,
+            BarsRemaining = (action.ExpiryBars ?? 0) > 0 ? action.ExpiryBars!.Value : -1,
+            SignalData    = action.SignalData,
+            Strategy      = strategy,
+            Magic         = magic,
+            PlacedTime    = barTime,
+        };
+        PendingOrders.Add(pending);
+        return pending;
+    }
+
+    /// <summary>
+    /// Check pending orders for trigger conditions on the current bar.
+    /// Must be called BEFORE CheckSLTP and BEFORE processing ACTIONS.
+    /// Returns newly opened positions (to exclude from SL/TP check on same bar).
+    /// </summary>
+    public List<BtPosition> CheckPendingTriggers(
+        Dictionary<string, Bar> currentBars, long currentBarTime, HashSet<long> newTickets)
+    {
+        var filled = new List<BtPosition>();
+
+        foreach (var pending in PendingOrders.ToList())
+        {
+            // Decrement expiry
+            if (pending.BarsRemaining > 0)
+            {
+                pending.BarsRemaining--;
+                if (pending.BarsRemaining == 0)
+                {
+                    // Expired
+                    PendingOrders.Remove(pending);
+                    BlockedSignals.Add(new BtBlockedSignal
+                    {
+                        BarTime    = currentBarTime,
+                        Symbol     = pending.Symbol,
+                        Direction  = pending.Direction == "BUY" ? "LONG" : "SHORT",
+                        Gate       = "PENDING_EXPIRED",
+                        Reason     = $"Pending {pending.OrderType} expired after {pending.BarsRemaining} bars",
+                        EntryPrice = pending.EntryPrice,
+                        SignalData = pending.SignalData,
+                    });
+                    continue;
+                }
+            }
+
+            if (!currentBars.TryGetValue(pending.Symbol, out var bar)) continue;
+
+            bool isBuyStop = pending.OrderType == "BUY_STOP";
+            bool triggered = isBuyStop
+                ? bar.High >= pending.EntryPrice
+                : bar.Low  <= pending.EntryPrice;
+
+            if (!triggered) continue;
+
+            // Gap fill: if bar opened beyond entry → fill at Open
+            double fillPrice = isBuyStop
+                ? (bar.Open >= pending.EntryPrice ? bar.Open : pending.EntryPrice)
+                : (bar.Open <= pending.EntryPrice ? bar.Open : pending.EntryPrice);
+
+            // Build synthetic action for OpenPosition
+            var synthAction = new Daemon.Strategy.StrategyAction
+            {
+                Action     = "ENTER",
+                Symbol     = pending.Symbol,
+                Direction  = pending.Direction == "BUY" ? "LONG" : "SHORT",
+                SlPrice    = pending.SL,
+                TpPrice    = pending.TP > 0 ? pending.TP : null,
+                SignalData = pending.SignalData,
+                Comment    = pending.OrderType,
+            };
+
+            var pos = OpenPosition(synthAction, fillPrice, currentBarTime,
+                pending.Volume, pending.Strategy, pending.Magic);
+
+            if (pos != null)
+            {
+                filled.Add(pos);
+                newTickets.Add(pos.Ticket);
+            }
+
+            PendingOrders.Remove(pending);
+
+            // OCO: cancel siblings with same SignalData
+            if (!string.IsNullOrEmpty(pending.SignalData))
+            {
+                var siblings = PendingOrders
+                    .Where(p => p.SignalData == pending.SignalData && p.Ticket != pending.Ticket)
+                    .ToList();
+                foreach (var sib in siblings)
+                    PendingOrders.Remove(sib);
+            }
+        }
+
+        return filled;
+    }
+
     // ── Record Blocked Signal ────────────────────────────────
 
     public void RecordBlockedSignal(StrategyAction action, string gate, string reason,
@@ -424,6 +540,23 @@ public class BtPosition
     public double OriginalSlDist { get; set; }   // original SL distance from signal_data (fixed at entry)
 }
 
+public class BtPendingOrder
+{
+    public long   Ticket        { get; set; }
+    public string Symbol        { get; set; } = "";
+    public string Direction     { get; set; } = "";  // BUY/SELL
+    public string OrderType     { get; set; } = "";  // BUY_STOP/SELL_STOP
+    public double Volume        { get; set; }
+    public double EntryPrice    { get; set; }
+    public double SL            { get; set; }
+    public double TP            { get; set; }
+    public int    BarsRemaining { get; set; }        // -1 = GTC
+    public string? SignalData   { get; set; }
+    public string Strategy      { get; set; } = "";
+    public int    Magic         { get; set; }
+    public long   PlacedTime    { get; set; }
+}
+
 public class BtTrade
 {
     public long Ticket { get; set; }
@@ -459,6 +592,7 @@ public class BtBlockedSignal
     public string Reason { get; set; } = "";
     public long BarTime { get; set; }
     public double EntryPrice { get; set; }
+    public string? SignalData { get; set; }
 }
 
 public class BtEquitySnapshot

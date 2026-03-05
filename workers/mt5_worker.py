@@ -402,6 +402,34 @@ def handle_orders_get(msg: dict) -> dict:
     return _ok(msg, result)
 
 
+def handle_order_delete(msg: dict) -> dict:
+    """Delete (cancel) a pending order. msg must contain 'ticket'."""
+    ticket = msg.get("ticket")
+    if ticket is None:
+        return _error(msg, "missing 'ticket' field")
+
+    request = {
+        "action": 8,           # TRADE_ACTION_REMOVE
+        "order":  int(ticket),
+    }
+    log.info(f"ORDER_DELETE: ticket={ticket}")
+    result = mt5.order_send(request)
+    if result is None:
+        return _error(msg, f"order_send(REMOVE) returned None: {mt5.last_error()}", retryable=False)
+
+    if result.retcode != mt5.TRADE_RETCODE_DONE:
+        retryable = result.retcode in RETRYABLE_CODES
+        return {
+            "id":       msg.get("id"),
+            "status":   "error",
+            "code":     result.retcode,
+            "message":  result.comment,
+            "retryable": retryable,
+        }
+
+    return _ok(msg, {"order": result.order, "comment": result.comment})
+
+
 def handle_history_deals(msg: dict) -> dict:
     """Get deal history. Supports two modes:
     1. By time range: {"from_ts": ..., "to_ts": ...}
@@ -917,6 +945,7 @@ COMMANDS = {
     "GET_RATES":      handle_get_rates,
     "SYMBOL_INFO":    handle_symbol_info,
     "ORDER_SEND":     handle_order_send,
+    "ORDER_DELETE":   handle_order_delete,
     "ORDERS_GET":     handle_orders_get,
     "HISTORY_DEALS":  handle_history_deals,
     "CALC_LEVERAGE":  handle_calc_leverage,

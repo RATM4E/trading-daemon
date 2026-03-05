@@ -191,7 +191,8 @@ public class BacktestEngine
                 var warmupActions = await _process.SendTickAsync(warmupTick, ct);
 
                 int suppressed = warmupActions?.Count(a =>
-                    a.Action.Equals("ENTER", StringComparison.OrdinalIgnoreCase)) ?? 0;
+                    a.Action.Equals("ENTER", StringComparison.OrdinalIgnoreCase) ||
+                    a.Action.Equals("ENTER_PENDING", StringComparison.OrdinalIgnoreCase)) ?? 0;
                 if (suppressed > 0)
                     _log.Info($"[Backtest] Warmup tick: suppressed {suppressed} ENTER action(s)");
 
@@ -200,7 +201,8 @@ public class BacktestEngine
                 {
                     foreach (var action in warmupActions)
                     {
-                        if (action.Action.Equals("ENTER", StringComparison.OrdinalIgnoreCase))
+                        if (action.Action.Equals("ENTER", StringComparison.OrdinalIgnoreCase) ||
+                            action.Action.Equals("ENTER_PENDING", StringComparison.OrdinalIgnoreCase))
                             continue;
                         // Unlikely during warmup, but handle defensively
                     }
@@ -236,8 +238,10 @@ public class BacktestEngine
                     }
                 }
 
-                // 8c. Check SL/TP on PREVIOUSLY opened positions
-                var slTpClosed = _executor.CheckSLTP(currentBars, barTime);
+                // 8c. Check pending order triggers, then SL/TP on open positions
+                var newTickets = new HashSet<long>();
+                _executor.CheckPendingTriggers(currentBars, barTime, newTickets);
+                var slTpClosed = _executor.CheckSLTP(currentBars, barTime, newTickets);
 
                 // 8d. Build TICK message
                 var positions = _executor.OpenPositions.Select(p => new PositionData
@@ -268,8 +272,6 @@ public class BacktestEngine
                 }
 
                 // 8f. Process actions
-                var newTickets = new HashSet<long>();
-
                 foreach (var action in actions)
                 {
                     switch (action.Action.ToUpperInvariant())
@@ -277,6 +279,10 @@ public class BacktestEngine
                         case "ENTER":
                             await HandleEnterAsync(action, barTime, nextBarTime,
                                 allBars, cards, currentBars, newTickets, ct);
+                            break;
+
+                        case "ENTER_PENDING":
+                            HandleEnterPending(action, barTime, cards, currentBars, newTickets);
                             break;
 
                         case "EXIT":
@@ -473,6 +479,85 @@ public class BacktestEngine
             newTickets.Add(pos.Ticket);
         return Task.CompletedTask;
     }
+
+    private void HandleEnterPending(
+        StrategyAction action, long barTime,
+        Dictionary<string, InstrumentCard> cards,
+        Dictionary<string, Bar> currentBars,
+        HashSet<long> newTickets)
+    {
+        var symbol     = action.Symbol!;
+        var direction  = action.Direction!.ToUpperInvariant();
+        var entryPrice = action.EntryPrice ?? 0;
+        var slPrice    = action.SlPrice ?? 0;
+
+        if (entryPrice <= 0) return;
+        if (!currentBars.TryGetValue(symbol, out var curBar)) return;
+        if (!cards.TryGetValue(symbol, out var card)) return;
+
+        // Validate direction vs price (same as live)
+        bool validBuyStop  = direction == "LONG"  && entryPrice > curBar.Close;
+        bool validSellStop = direction == "SHORT" && entryPrice < curBar.Close;
+        if (!validBuyStop && !validSellStop)
+        {
+            _executor!.RecordBlockedSignal(action, "PENDING_INVALID",
+                $"entry_price={entryPrice} invalid for {direction} current={curBar.Close}",
+                barTime, entryPrice);
+            return;
+        }
+
+        // Lot calculation (same as HandleEnterAsync)
+        var profile = _liveState.GetProfile(_btConfig.TerminalId);
+        double riskMoney;
+        if (profile != null)
+        {
+            double baseRisk = LotCalculator.GetRiskMoney(profile!, _executor!.Balance);
+            double factor   = _btConfig.SizingFactors.GetValueOrDefault(symbol, 0);
+            if (factor <= 0)
+            {
+                var sizing = _liveState.GetSymbolSizing(_btConfig.TerminalId, symbol);
+                factor = sizing?.RiskFactor ?? 1.0;
+            }
+            riskMoney = baseRisk * factor;
+        }
+        else
+        {
+            riskMoney = _executor!.Balance * 0.01;
+        }
+
+        var lotResult = LotCalculator.Calculate(
+            entryPrice: entryPrice,
+            slPrice:    slPrice,
+            riskMoney:  riskMoney,
+            card:       card);
+
+        if (!lotResult.Allowed || lotResult.Lot <= 0)
+        {
+            _executor.RecordBlockedSignal(action, "LOT_CALC",
+                lotResult.Reason ?? "Lot=0", barTime, entryPrice);
+            return;
+        }
+
+        // G12 R-cap check
+        if (_btConfig.RCap.HasValue)
+        {
+            var brokerDate = DateTimeOffset.FromUnixTimeSeconds(barTime).ToString("yyyy-MM-dd");
+            var dailyR = _executor.GetDailyR(brokerDate);
+            if (dailyR <= -_btConfig.RCap.Value)
+            {
+                _executor.RecordBlockedSignal(action, "G12_RCAP",
+                    $"Daily R={dailyR:F2} >= cap {_btConfig.RCap.Value}", barTime, entryPrice);
+                return;
+            }
+        }
+
+        var pending = _executor.PlacePending(action, barTime, lotResult.Lot,
+            _btConfig.Strategy, _btConfig.Magic);
+
+        _log.Info($"[Backtest] PENDING {pending.OrderType} {symbol} @ {entryPrice} " +
+                  $"lot={lotResult.Lot:F2} expiry={action.ExpiryBars ?? 0}");
+    }
+
     private void HandleExit(StrategyAction action, long barTime, long nextBarTime,
                             Dictionary<string, List<Bar>> allBars)
     {

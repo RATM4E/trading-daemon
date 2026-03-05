@@ -207,14 +207,29 @@ public class ErrorMessage
 /// </summary>
 public class StrategyAction
 {
-    /// <summary>"ENTER", "EXIT", "MODIFY_SL"</summary>
+    /// <summary>"ENTER", "ENTER_PENDING", "EXIT", "MODIFY_SL"</summary>
     [JsonPropertyName("action")] public string Action { get; set; } = "";
 
-    // --- ENTER fields ---
+    // --- ENTER / ENTER_PENDING fields ---
     [JsonPropertyName("symbol")]    public string? Symbol { get; set; }
     [JsonPropertyName("direction")] public string? Direction { get; set; }   // "LONG" / "SHORT"
     [JsonPropertyName("sl_price")]  public double? SlPrice { get; set; }
     [JsonPropertyName("tp_price")]  public double? TpPrice { get; set; }
+
+    // --- ENTER_PENDING specific ---
+    /// <summary>
+    /// Pending order trigger price.
+    /// LONG + entry_price > current_price  → BUY_STOP
+    /// SHORT + entry_price &lt; current_price → SELL_STOP
+    /// </summary>
+    [JsonPropertyName("entry_price")]  public double? EntryPrice { get; set; }
+
+    /// <summary>
+    /// How many bars the pending order lives before auto-cancel.
+    /// Counted from the bar the signal was generated on.
+    /// null or 0 = no expiry (GTC).
+    /// </summary>
+    [JsonPropertyName("expiry_bars")] public int? ExpiryBars { get; set; }
 
     // --- EXIT / MODIFY_SL fields ---
     [JsonPropertyName("ticket")]    public long? Ticket { get; set; }

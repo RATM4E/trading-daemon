@@ -48,6 +48,10 @@ public class Scheduler
     private VirtualTracker? _virtualTracker;
     public void SetVirtualTracker(VirtualTracker vt) => _virtualTracker = vt;
 
+    /// <summary>Set after construction (PendingOrderManager is created later).</summary>
+    private PendingOrderManager? _pendingMgr;
+    public void SetPendingOrderManager(PendingOrderManager pm) => _pendingMgr = pm;
+
     /// <summary>Interval between daemon-initiated heartbeats when no new candle.</summary>
     private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromSeconds(120);
 
@@ -235,11 +239,15 @@ public class Scheduler
         if (!process.WarmupDone)
         {
             process.WarmupDone = true;
-            var enterCount = actions.Count(a => a.Action.Equals("ENTER", StringComparison.OrdinalIgnoreCase));
+            var enterCount = actions.Count(a =>
+                a.Action.Equals("ENTER", StringComparison.OrdinalIgnoreCase) ||
+                a.Action.Equals("ENTER_PENDING", StringComparison.OrdinalIgnoreCase));
             if (enterCount > 0)
             {
                 _log.Info($"{tag} Warmup tick: suppressed {enterCount} ENTER action(s)");
-                actions = actions.Where(a => !a.Action.Equals("ENTER", StringComparison.OrdinalIgnoreCase)).ToList();
+                actions = actions.Where(a =>
+                    !a.Action.Equals("ENTER", StringComparison.OrdinalIgnoreCase) &&
+                    !a.Action.Equals("ENTER_PENDING", StringComparison.OrdinalIgnoreCase)).ToList();
                 if (actions.Count == 0) return;
             }
         }
@@ -269,6 +277,9 @@ public class Scheduler
         {
             case "ENTER":
                 await HandleEnterAsync(process, action, ct);
+                break;
+            case "ENTER_PENDING":
+                await HandleEnterPendingAsync(process, action, ct);
                 break;
             case "EXIT":
                 await HandleExitAsync(process, action, ct);
@@ -531,6 +542,180 @@ public class Scheduler
     }
 
     // -----------------------------------------------------------------------
+    //  ENTER_PENDING
+    // -----------------------------------------------------------------------
+
+    private async Task HandleEnterPendingAsync(StrategyProcess process, StrategyAction action,
+                                                CancellationToken ct)
+    {
+        var terminalId = process.TerminalId;
+        var tag = $"[{process.StrategyName}@{terminalId}]";
+        var symbol     = action.Symbol!;
+        var direction  = action.Direction!.ToUpperInvariant();
+        var slPrice    = action.SlPrice ?? 0;
+        var entryPrice = action.EntryPrice ?? 0;
+
+        if (entryPrice <= 0)
+        {
+            _log.Warn($"{tag} ENTER_PENDING: entry_price missing or zero");
+            return;
+        }
+
+        if (_pendingMgr == null)
+        {
+            _log.Warn($"{tag} ENTER_PENDING: PendingOrderManager not wired");
+            return;
+        }
+
+        // Derive order type from direction vs current price
+        var tf = process.Requirements?.Timeframes.GetValueOrDefault(symbol, "H1") ?? "H1";
+        var lastBars = _barsCache.GetBars(terminalId, symbol, tf);
+        double currentPrice = lastBars is { Count: > 0 } ? lastBars[^1].Close : 0;
+        if (currentPrice <= 0) { _log.Error($"{tag} No price for {symbol}"); return; }
+
+        string orderType;
+        if (direction == "LONG" && entryPrice > currentPrice)
+            orderType = "BUY_STOP";
+        else if (direction == "SHORT" && entryPrice < currentPrice)
+            orderType = "SELL_STOP";
+        else
+        {
+            _log.Warn($"{tag} ENTER_PENDING: invalid direction/price combo " +
+                      $"({direction} entry={entryPrice} current={currentPrice})");
+            return;
+        }
+
+        _log.Info($"{tag} ENTER_PENDING signal: {orderType} {symbol} @ {entryPrice} SL={slPrice}");
+        _state.LogEvent("SIGNAL", terminalId, process.StrategyName,
+            $"ENTER_PENDING {orderType} {symbol} @ {entryPrice} SL={slPrice}");
+        _ = _alerts.SendAsync("SIGNAL", terminalId,
+            $"\u26a1 PENDING SIGNAL: {orderType} {symbol} @ {entryPrice}",
+            process.StrategyName);
+        _alerts.NotifySignalSent();
+
+        var profile = _state.GetProfile(terminalId);
+        if (profile == null) { _log.Error($"{tag} No terminal profile"); return; }
+
+        var card = await _connector.GetSymbolInfoAsync(terminalId, symbol, ct);
+        if (card == null) { _log.Error($"{tag} No card for {symbol}"); return; }
+
+        var acc = await _connector.GetAccountInfoAsync(terminalId, ct);
+        if (acc == null) { _log.Error($"{tag} No account info"); return; }
+
+        var sizing = _state.GetSymbolSizing(terminalId, symbol);
+        if (sizing != null && !sizing.Enabled)
+        {
+            _log.Info($"{tag} Symbol {symbol} disabled in sizing config");
+            _ = _alerts.SendAsync("RISK", terminalId,
+                $"\U0001f6ab BLOCKED {direction} {symbol}: symbol disabled", process.StrategyName);
+            _alerts.NotifySignalSent();
+            return;
+        }
+
+        double baseRisk  = Engine.LotCalculator.GetRiskMoney(profile, acc.Balance);
+        double factor    = sizing?.RiskFactor ?? 1.0;
+        if (factor <= 0) { _log.Info($"{tag} risk_factor=0, skipping"); return; }
+        double riskMoney = baseRisk * factor;
+
+        // Lot calc uses entry_price as fill reference
+        double loss1Lot = 0;
+        try
+        {
+            var profit = await _connector.CalcProfitAsync(
+                terminalId, symbol, direction, 1.0, entryPrice, slPrice, ct);
+            if (profit.HasValue && profit.Value != 0)
+                loss1Lot = Math.Abs(profit.Value);
+        }
+        catch { }
+
+        var lotResult = Engine.LotCalculator.Calculate(
+            entryPrice: entryPrice,
+            slPrice: slPrice,
+            riskMoney: riskMoney,
+            card: card,
+            loss1Lot: loss1Lot);
+
+        if (sizing?.MaxLot != null && lotResult.Allowed && lotResult.Lot > sizing.MaxLot.Value)
+        {
+            lotResult.Lot = sizing.MaxLot.Value;
+            lotResult.ActualRisk = loss1Lot > 0
+                ? Math.Round(loss1Lot * lotResult.Lot, 2)
+                : lotResult.Ticks * lotResult.TickValue * lotResult.Lot;
+        }
+
+        if (!lotResult.Allowed || lotResult.Lot <= 0)
+        {
+            _log.Warn($"{tag} LotCalc rejected: {lotResult.Reason}");
+            _ = _alerts.SendAsync("RISK", terminalId,
+                $"\U0001f6ab SIZING REJECT {symbol}: {lotResult.Reason}", process.StrategyName);
+            return;
+        }
+
+        int comboMagic = _state.ResolveComboMagic(
+            process.StrategyName, process.Magic, action.SignalData);
+
+        var tradeReq = new Engine.TradeRequest
+        {
+            TerminalId     = terminalId,
+            Symbol         = symbol,
+            Direction      = direction,
+            EntryPrice     = entryPrice,
+            SlPrice        = slPrice,
+            Lot            = lotResult.Lot,
+            TradeRisk      = lotResult.ActualRisk,
+            AccountBalance = profile.Mode == "virtual"
+                ? (_state.GetVirtualBalance(terminalId) ?? acc.Balance)
+                : acc.Balance,
+            Strategy       = process.StrategyName,
+            Magic          = comboMagic,
+            RCap           = process.RCap,
+            TerminalMagics = _state.GetOpenPositions(terminalId)
+                .Select(p => p.Magic).Distinct().ToList(),
+        };
+
+        var gate = await _risk.CheckAsync(tradeReq, ct);
+        if (!gate.Allowed)
+        {
+            _log.Warn($"{tag} Blocked by {gate.Gate}: {gate.Reason}");
+            _state.LogEvent("RISK_BLOCK", terminalId, process.StrategyName,
+                $"{gate.Gate}: {gate.Reason}",
+                JsonSerializer.Serialize(new { symbol, direction, entryPrice, slPrice }));
+            _ = _alerts.SendAsync("RISK", terminalId,
+                $"\U0001f6ab BLOCKED PENDING {direction} {symbol}: {gate.Gate}",
+                process.StrategyName);
+            _alerts.NotifySignalSent();
+            return;
+        }
+
+        _log.Info($"{tag} Gates PASSED \u2192 {orderType} {symbol} lot={lotResult.Lot:F2} @ {entryPrice}");
+
+        // Virtual mode
+        if (profile.Mode == "virtual")
+        {
+            await HandleVirtualEnterPendingAsync(process, symbol, direction, orderType,
+                entryPrice, slPrice, action.TpPrice ?? 0,
+                lotResult, comboMagic, action, ct);
+            return;
+        }
+
+        // Live: place via PendingOrderManager
+        await _pendingMgr.PlacePendingAsync(
+            strategyName: process.StrategyName,
+            terminalId:   terminalId,
+            magic:        comboMagic,
+            symbol:       symbol,
+            direction:    direction,
+            orderType:    orderType,
+            entryPrice:   entryPrice,
+            slPrice:      slPrice,
+            tpPrice:      action.TpPrice ?? 0,
+            lot:          lotResult.Lot,
+            expiryBars:   action.ExpiryBars ?? 0,
+            signalData:   action.SignalData,
+            ct:           ct);
+    }
+
+    // -----------------------------------------------------------------------
     //  VIRTUAL ENTER â€” Phase 9.V
     // -----------------------------------------------------------------------
 
@@ -627,6 +812,56 @@ public class Scheduler
         _ = _alerts.SendAsync("ORDER", terminalId,
             $"\U0001f7e3 VIRTUAL {direction} {symbol} lot={lotResult.Lot:F2} @ {fillPrice}",
             process.StrategyName);
+    }
+
+    // -----------------------------------------------------------------------
+    //  VIRTUAL ENTER_PENDING
+    // -----------------------------------------------------------------------
+
+    private Task HandleVirtualEnterPendingAsync(
+        StrategyProcess process, string symbol, string direction, string orderType,
+        double entryPrice, double slPrice, double tpPrice,
+        Engine.LotResult lotResult, int comboMagic, StrategyAction action,
+        CancellationToken ct)
+    {
+        var terminalId = process.TerminalId;
+        var tag = $"[V:{process.StrategyName}@{terminalId}]";
+
+        var virtualTicket = _state.NextVirtualTicket();
+        var tf = process.Requirements?.Timeframes.GetValueOrDefault(symbol, "H1") ?? "H1";
+        int barsRemaining = (action.ExpiryBars ?? 0) > 0 ? action.ExpiryBars!.Value : -1;
+
+        _state.SavePendingOrder(new Engine.PendingOrderRecord
+        {
+            Ticket        = virtualTicket,
+            TerminalId    = terminalId,
+            Symbol        = symbol,
+            Strategy      = process.StrategyName,
+            Magic         = comboMagic,
+            Direction     = direction == "LONG" ? "BUY" : "SELL",
+            OrderType     = orderType,
+            Volume        = lotResult.Lot,
+            EntryPrice    = entryPrice,
+            SL            = slPrice,
+            TP            = tpPrice,
+            BarsRemaining = barsRemaining,
+            SignalData    = action.SignalData,
+            IsVirtual     = true,
+            PlacedAt      = DateTime.UtcNow.ToString("o"),
+        });
+
+        _log.Info($"{tag} VIRTUAL PENDING ticket={virtualTicket} {orderType} {symbol} @ {entryPrice} " +
+                  $"lot={lotResult.Lot:F2} expiry={action.ExpiryBars ?? 0} bars");
+
+        _state.LogEvent("VIRTUAL_ORDER", terminalId, process.StrategyName,
+            $"\U0001f7e3 VIRTUAL PENDING {orderType} {symbol} @ {entryPrice} lot={lotResult.Lot:F2}",
+            JsonSerializer.Serialize(new { ticket = virtualTicket, slPrice, expiryBars = action.ExpiryBars }));
+
+        _ = _alerts.SendAsync("ORDER", terminalId,
+            $"\U0001f7e3 VIRTUAL PENDING {orderType} {symbol} @ {entryPrice} lot={lotResult.Lot:F2}",
+            process.StrategyName);
+
+        return Task.CompletedTask;
     }
 
     // -----------------------------------------------------------------------

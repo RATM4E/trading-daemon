@@ -1099,5 +1099,62 @@ public partial class DashboardServer
         return atr;
     }
 
+    // -------------------------------------------------------------------
+    // get_pending_orders — pending (stop) orders across all terminals
+    // -------------------------------------------------------------------
+
+    private object HandleGetPendingOrders(JsonElement root)
+    {
+        string? filterTerminal = null;
+        if (root.TryGetProperty("terminal", out var termProp))
+            filterTerminal = termProp.GetString();
+
+        var terminalIds = filterTerminal != null
+            ? new List<string> { filterTerminal }
+            : _config.Terminals.Select(t => t.Id).ToList();
+
+        var result = new List<object>();
+
+        foreach (var termId in terminalIds)
+        {
+            var pending = _state.GetOpenPendingOrders(termId);
+            foreach (var rec in pending)
+            {
+                // Current price for reference (from BarsCache)
+                double current = 0;
+                if (_barsCache != null)
+                {
+                    foreach (var tf in new[] { "M5", "M15", "M30", "H1", "H4", "D1" })
+                    {
+                        var bars = _barsCache.GetBars(termId, rec.Symbol, tf);
+                        if (bars is { Count: > 0 }) { current = bars[^1].Close; break; }
+                    }
+                }
+
+                string expiry = rec.BarsRemaining < 0
+                    ? "GTC"
+                    : rec.BarsRemaining.ToString();
+
+                result.Add(new
+                {
+                    terminal     = termId,
+                    ticket       = rec.Ticket,
+                    symbol       = rec.Symbol,
+                    dir          = rec.Direction == "BUY" ? "LONG" : "SHORT",
+                    order_type   = rec.OrderType,
+                    lot          = rec.Volume,
+                    entry        = rec.EntryPrice,
+                    current,
+                    sl           = rec.SL,
+                    expiry,
+                    strategy     = rec.Strategy,
+                    is_virtual   = rec.IsVirtual,
+                    placed_at    = rec.PlacedAt,
+                });
+            }
+        }
+
+        return new { pending_orders = result };
+    }
 
 }
