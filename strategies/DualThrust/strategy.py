@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """
-DualThrust Strategy — Daemon Implementation v2
+DualThrust Strategy — Daemon Implementation v2.1
 ===============================================
 
 Изменения v2:
   - BE протектор: при floating profit ≥ be_trigger_r × SL_dist → MODIFY_SL в breakeven
   - Тиры: T1/T2 из config['symbol_tiers'], передаётся в signal_data для демона
   - Удалён неиспользуемый numpy импорт
+
+Изменения v2.1:
+  - Конфиг читается из combos[] (schema v1.2). symbols/symbol_tiers удалены из конфига.
+  - Триггер входа: close >= upper / close <= lower (согласовано с бэктестом).
+    Ранее использовался hi >= upper / lo <= lower — вход внутри бара, расхождение с backtest.
 
 Логика:
   1. Из M5 истории ресемплируем D1 → DualThrust range (N дней)
@@ -51,16 +56,23 @@ D1_SEC = 86400
 class Strategy:
 
     def __init__(self, config: dict):
-        self.N          = int(config.get('N', 5))
-        self.K          = float(config.get('K', 0.3))
-        self.sh         = int(config.get('session_start_hour', 9))
-        self.eh         = int(config.get('session_end_hour', 17))
-        self.mr         = int(config.get('max_rev', 0))
-        self.be_trig    = float(config.get('be_trigger_r', 0.41))
-        self.sl_buf     = float(config.get('sl_buffer_mult', 1.05))
-        self.syms       = list(config.get('symbols', []))
-        self.tiers      = dict(config.get('symbol_tiers', {}))
+        self.N          = int(config.get('params', {}).get('N', 5))
+        self.K          = float(config.get('params', {}).get('K', 0.3))
+        self.sh         = int(config.get('params', {}).get('session_start_hour', 9))
+        self.eh         = int(config.get('params', {}).get('session_end_hour', 17))
+        self.mr         = int(config.get('params', {}).get('max_rev', 0))
+        self.be_trig    = float(config.get('params', {}).get('be_trigger_r', 0.41))
+        self.sl_buf     = float(config.get('params', {}).get('sl_buffer_mult', 1.05))
         self.name       = config.get('strategy', 'dualthrust')
+
+        # Читаем символы и тиры из combos[]
+        self.syms  = []
+        self.tiers = {}
+        for combo in config.get('combos', []):
+            sym  = combo['sym']
+            tier = combo.get('tier', 'T2')
+            self.syms.append(sym)
+            self.tiers[sym] = tier
 
         # Per-symbol внутридневное состояние
         # {sym: {day_ts, n_rev, blocked, upper, lower, be_set}}
@@ -190,7 +202,7 @@ class Strategy:
                     st['be_set'] = True
 
         # ── Сигналы входа/разворота ───────────────────────────────
-        if lo <= lower:   # SHORT signal
+        if cl <= lower:   # SHORT signal
             if pos is not None:
                 if pos.get('direction') == 'LONG':
                     actions.append(self._exit(pos, f"DT {sym} reversal→SHORT"))
@@ -205,7 +217,7 @@ class Strategy:
                 actions.append(self._enter(sym, 'SHORT', upper, lower, day_ts, st['n_rev']))
                 st['be_set'] = False
 
-        elif hi >= upper:   # LONG signal
+        elif cl >= upper:   # LONG signal
             if pos is not None:
                 if pos.get('direction') == 'SHORT':
                     actions.append(self._exit(pos, f"DT {sym} reversal→LONG"))

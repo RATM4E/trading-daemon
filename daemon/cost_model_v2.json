@@ -194,7 +194,7 @@
       "slippage": 2.6,
       "spread_open_widened": 8.0
     },
-    "DE40": {
+    "DAX40": {
       "asset_class": "index",
       "spread": 1.7,
       "slippage": 1.3,
@@ -206,7 +206,7 @@
       "slippage": 2.0,
       "spread_open_widened": 5.5
     },
-    "JP225": {
+    "JPN225": {
       "asset_class": "index",
       "spread": 11,
       "slippage": 5,
@@ -545,8 +545,8 @@
       },
       "notes": "PipsPlatform uses WS30 (Wall Street 30). AvaTrade uses DOW30. IG uses 'Wall Street'. Most others: US30"
     },
-    "DE40": {
-      "base": "DE40",
+    "DAX40": {
+      "base": "DAX40",
       "known_variants": [
         "DE40",
         "GER40",
@@ -610,8 +610,8 @@
         "PipsPlatform": "UK100"
       }
     },
-    "JP225": {
-      "base": "JP225",
+    "JPN225": {
+      "base": "JPN225",
       "known_variants": [
         "JP225",
         "JPN225",
