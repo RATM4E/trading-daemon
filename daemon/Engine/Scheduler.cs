@@ -220,6 +220,24 @@ public class Scheduler
             })
             .ToList();
 
+        // Pending orders filtered by magic range
+        tick.PendingOrders = _state.GetOpenPendingOrders(terminalId)
+            .Where(p => p.Magic >= magicBase && p.Magic < magicBase + 1000)
+            .Select(p => new PendingOrderData
+            {
+                Ticket        = p.Ticket,
+                Symbol        = p.Symbol,
+                Direction     = p.Direction == "BUY" ? "LONG" : "SHORT",
+                OrderType     = p.OrderType,
+                Volume        = p.Volume,
+                EntryPrice    = p.EntryPrice,
+                SL            = p.SL,
+                TP            = p.TP,
+                BarsRemaining = p.BarsRemaining,
+                SignalData    = p.SignalData,
+            })
+            .ToList();
+
         // Account equity
         try
         {

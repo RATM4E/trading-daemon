@@ -131,6 +131,13 @@ public class TickMessage
     [JsonPropertyName("positions")]
     public List<PositionData> Positions { get; set; } = new();
 
+    /// <summary>
+    /// Active pending (stop) orders for this strategy (filtered by magic).
+    /// Strategy should check this before sending ENTER_PENDING to avoid duplicates.
+    /// </summary>
+    [JsonPropertyName("pending_orders")]
+    public List<PendingOrderData> PendingOrders { get; set; } = new();
+
     /// <summary>Current account equity (for strategy info, not for risk calc).</summary>
     [JsonPropertyName("equity")]
     public double Equity { get; set; }
@@ -168,6 +175,22 @@ public class PositionData
     [JsonPropertyName("profit")]      public double Profit { get; set; }
     [JsonPropertyName("open_time")]   public long OpenTime { get; set; }
     [JsonPropertyName("signal_data")] public string? SignalData { get; set; }
+}
+
+/// <summary>Pending (stop) order data sent to strategy in TICK.pending_orders.</summary>
+public class PendingOrderData
+{
+    [JsonPropertyName("ticket")]        public long Ticket { get; set; }
+    [JsonPropertyName("symbol")]        public string Symbol { get; set; } = "";
+    [JsonPropertyName("direction")]     public string Direction { get; set; } = "";  // "LONG"/"SHORT"
+    [JsonPropertyName("order_type")]    public string OrderType { get; set; } = "";  // "BUY_STOP"/"SELL_STOP"
+    [JsonPropertyName("volume")]        public double Volume { get; set; }
+    [JsonPropertyName("entry_price")]   public double EntryPrice { get; set; }
+    [JsonPropertyName("sl")]            public double SL { get; set; }
+    [JsonPropertyName("tp")]            public double TP { get; set; }
+    /// <summary>Bars remaining until auto-cancel. -1 = GTC.</summary>
+    [JsonPropertyName("bars_remaining")] public int BarsRemaining { get; set; }
+    [JsonPropertyName("signal_data")]   public string? SignalData { get; set; }
 }
 
 /// <summary>
