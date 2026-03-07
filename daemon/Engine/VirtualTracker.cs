@@ -234,10 +234,19 @@ public class VirtualTracker
             foreach (var t in expiredTickets) expired.Add(t);
         }
 
+        // Tracks siblings already filled-and-cancelled due to OCO double-fill on the same bar.
+        var resolvedAsDoubleFill = new HashSet<long>();
+
         foreach (var rec in allPending)
         {
             try
             {
+                if (resolvedAsDoubleFill.Contains(rec.Ticket))
+                {
+                    _log.Info($"[V:{rec.TerminalId}] ticket={rec.Ticket} skipped – resolved as OCO double-fill sibling");
+                    continue;
+                }
+
                 // Expiry handled by DecrementPendingBars above
                 if (expired.Contains(rec.Ticket))
                 {
@@ -316,6 +325,50 @@ public class VirtualTracker
                         rec.TerminalId, rec.SignalData, rec.Ticket);
                     foreach (var ocoTicket in ocoTickets)
                     {
+                        // Check if sibling also triggered on this bar (double-fill on same bar).
+                        var sibRec = allPending.FirstOrDefault(p => p.Ticket == ocoTicket);
+                        if (sibRec != null && !expired.Contains(ocoTicket))
+                        {
+                            bool sibIsBuyStop = sibRec.OrderType == "BUY_STOP";
+                            var sibBars = GetBarsForSymbol(sibRec.TerminalId, sibRec.Symbol);
+                            if (sibBars != null && sibBars.Count > 0)
+                            {
+                                var sibBar = sibBars[^1];
+                                bool sibTriggered = sibIsBuyStop
+                                    ? sibBar.High >= sibRec.EntryPrice
+                                    : sibBar.Low  <= sibRec.EntryPrice;
+
+                                if (sibTriggered)
+                                {
+                                    // Both filled on the same bar: cancel the sibling position
+                                    // that was already saved (it's the last entry in virtual positions).
+                                    var sibVirtualPos = _state.GetOpenVirtualPositions(sibRec.TerminalId)
+                                        .Where(p => p.Magic  == sibRec.Magic &&
+                                                    p.Symbol == sibRec.Symbol &&
+                                                    p.Direction == sibRec.Direction)
+                                        .OrderByDescending(p => p.Ticket)
+                                        .FirstOrDefault();
+
+                                    if (sibVirtualPos != null)
+                                    {
+                                        _log.Error($"[V:{rec.TerminalId}] OCO DOUBLE FILL! sibling ticket={ocoTicket} " +
+                                                   $"filled pos={sibVirtualPos.Ticket} {sibRec.Symbol} – cancelling virtual position");
+                                        // Close at fill price (approximation: entry price)
+                                        _state.ClosePosition(sibVirtualPos.Ticket, sibRec.TerminalId,
+                                            sibRec.EntryPrice, "oco_double_fill", 0);
+                                        _state.LogEvent("VIRTUAL_ORDER", rec.TerminalId, rec.Strategy,
+                                            $"🚨 OCO DOUBLE FILL {sibRec.Symbol} – sibling virtual pos={sibVirtualPos.Ticket} cancelled",
+                                            JsonSerializer.Serialize(new { pendingTicket = ocoTicket, posTicket = sibVirtualPos.Ticket }));
+                                        _ = _alerts.SendAsync("RISK", rec.TerminalId,
+                                            $"🚨 OCO DOUBLE FILL (VIRTUAL) {sibRec.Symbol} – sibling pos={sibVirtualPos.Ticket} cancelled",
+                                            rec.Strategy);
+                                    }
+
+                                    resolvedAsDoubleFill.Add(ocoTicket);
+                                }
+                            }
+                        }
+
                         _state.ClosePendingOrder(ocoTicket, rec.TerminalId, "cancelled");
                         _log.Info($"[V:{rec.TerminalId}] OCO cancel virtual ticket={ocoTicket}");
                         _state.LogEvent("VIRTUAL_ORDER", rec.TerminalId, rec.Strategy,

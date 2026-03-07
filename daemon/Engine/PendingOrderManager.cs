@@ -161,11 +161,20 @@ public class PendingOrderManager
             positions = new();
         }
 
+        // Tracks siblings already closed due to OCO double-fill within this tick.
+        // Prevents the sibling record from being re-processed and saved as a 2nd position.
+        var resolvedAsDoubleFill = new HashSet<long>();
+
         foreach (var rec in dbPending)
         {
+            if (resolvedAsDoubleFill.Contains(rec.Ticket))
+            {
+                _log.Info($"[PendingMgr@{terminalId}] ticket={rec.Ticket} skipped – resolved as OCO double-fill sibling");
+                continue;
+            }
             try
             {
-                await ProcessOnePendingAsync(rec, mt5ByTicket, positions, ct);
+                await ProcessOnePendingAsync(rec, mt5ByTicket, positions, dbPending, resolvedAsDoubleFill, ct);
             }
             catch (Exception ex)
             {
@@ -182,6 +191,8 @@ public class PendingOrderManager
         PendingOrderRecord rec,
         Dictionary<long, BrokerPendingOrder> mt5ByTicket,
         List<Position> positions,
+        List<PendingOrderRecord> allPending,
+        HashSet<long> resolvedAsDoubleFill,
         CancellationToken ct)
     {
         var tag = $"[PendingMgr@{rec.TerminalId}]";
@@ -254,7 +265,61 @@ public class PendingOrderManager
                     foreach (var ocoTicket in ocoTickets)
                     {
                         _log.Info($"{tag} OCO cancel ticket={ocoTicket}");
-                        await _connector.DeletePendingOrderAsync(rec.TerminalId, ocoTicket, ct);
+                        var delResult = await _connector.DeletePendingOrderAsync(rec.TerminalId, ocoTicket, ct);
+
+                        // If delete failed, sibling may have also filled in the same bar (double-fill).
+                        // Check by looking for a matching position in the current positions snapshot.
+                        if (!delResult.IsOk)
+                        {
+                            var sibRec = allPending.FirstOrDefault(p => p.Ticket == ocoTicket);
+                            if (sibRec != null)
+                            {
+                                bool sibIsBuy = sibRec.Direction == "BUY";
+                                var sibPos = positions.FirstOrDefault(p =>
+                                    p.Magic  == sibRec.Magic  &&
+                                    p.Symbol == sibRec.Symbol &&
+                                    p.IsBuy  == sibIsBuy);
+
+                                if (sibPos != null)
+                                {
+                                    // ── OCO DOUBLE FILL DETECTED ──────────────────────────
+                                    // Both pending orders triggered within the same MT5 bar.
+                                    // Close the sibling position immediately at market.
+                                    _log.Error($"{tag} OCO DOUBLE FILL! sibling ticket={ocoTicket} " +
+                                               $"filled pos={sibPos.Ticket} {sibRec.Symbol} – closing at market");
+
+                                    var closeReq = new Dictionary<string, object>
+                                    {
+                                        ["action"]       = 1,
+                                        ["symbol"]       = sibRec.Symbol,
+                                        ["volume"]       = sibPos.Volume,
+                                        ["type"]         = sibIsBuy ? 1 : 0,   // reverse to close
+                                        ["position"]     = sibPos.Ticket,
+                                        ["magic"]        = sibRec.Magic,
+                                        ["comment"]      = $"D:oco_dbl:{sibRec.Strategy}",
+                                        ["type_filling"] = 2,
+                                    };
+                                    var closeResult = await _connector.SendOrderAsync(rec.TerminalId, closeReq, ct);
+
+                                    var closeStatus = closeResult.IsOk ? "closed" : $"close_failed({closeResult.Message})";
+                                    _state.LogEvent("RISK", rec.TerminalId, rec.Strategy,
+                                        $"OCO DOUBLE FILL {sibRec.Symbol} sibling pos={sibPos.Ticket} {closeStatus}",
+                                        JsonSerializer.Serialize(new
+                                        {
+                                            pendingTicket = ocoTicket,
+                                            posTicket     = sibPos.Ticket,
+                                            closeOk       = closeResult.IsOk,
+                                        }));
+                                    _ = _alerts.SendAsync("RISK", rec.TerminalId,
+                                        $"🚨 OCO DOUBLE FILL {sibRec.Symbol} – sibling pos={sibPos.Ticket} {closeStatus}",
+                                        rec.Strategy);
+
+                                    // Mark sibling so the foreach loop skips it instead of saving it as a position.
+                                    resolvedAsDoubleFill.Add(ocoTicket);
+                                }
+                            }
+                        }
+
                         _state.ClosePendingOrder(ocoTicket, rec.TerminalId, "cancelled");
                         _state.LogEvent("ORDER", rec.TerminalId, rec.Strategy,
                             $"OCO CANCELLED pending ticket={ocoTicket}");
