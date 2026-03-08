@@ -62,6 +62,7 @@ BAR_TF_SEC       = 300
 SYMBOL_CACHE_TTL = 7 * 24 * 3600
 TP_DRIFT         = 0.0005   # 0.05% — смещение TP внутрь рынка для гарантии заполнения
 POLL_INTERVAL    = 15       # секунд между проверками статуса ордеров
+MAX_DAILY_STOPS  = int(os.environ.get("MAX_DAILY_STOPS", "0"))  # 0 = выключено
 
 # ---------------------------------------------------------------------------
 # Валидация конфигурации
@@ -107,6 +108,96 @@ log = logging.getLogger("copier")
 # ---------------------------------------------------------------------------
 # Модели данных
 # ---------------------------------------------------------------------------
+
+STATE_FILE = "positions_state.json"
+
+def save_state(positions: dict):
+    """Сохранить открытые позиции на диск."""
+    try:
+        data = {}
+        for sym, pos in positions.items():
+            data[sym] = {
+                "signal": {
+                    "symbol": pos.signal.symbol,
+                    "direction": pos.signal.direction,
+                    "entry1": pos.signal.entry1,
+                    "entry2": pos.signal.entry2,
+                    "sl": pos.signal.sl,
+                    "tp1": pos.signal.tp1,
+                    "tp2": pos.signal.tp2,
+                    "tp3": pos.signal.tp3,
+                },
+                "total_lot": pos.total_lot,
+                "entry_order_ids": pos.entry_order_ids,
+                "sl_order_id": pos.sl_order_id,
+                "tp_order_ids": pos.tp_order_ids,
+                "entry2_placed": pos.entry2_placed,
+            }
+        with open(STATE_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        log.warning(f"save_state: {e}")
+
+def load_state() -> dict:
+    """Загрузить позиции с диска при рестарте."""
+    if not os.path.exists(STATE_FILE):
+        return {}
+    try:
+        with open(STATE_FILE) as f:
+            data = json.load(f)
+        positions = {}
+        for sym, d in data.items():
+            s = d['signal']
+            sig = Signal(
+                symbol=s['symbol'], direction=s['direction'],
+                entry1=s['entry1'], entry2=s.get('entry2'),
+                sl=s['sl'], tp1=s['tp1'], tp2=s.get('tp2'), tp3=s.get('tp3'),
+            )
+            positions[sym] = PositionState(
+                signal=sig,
+                total_lot=d['total_lot'],
+                entry_order_ids=d.get('entry_order_ids', []),
+                sl_order_id=d.get('sl_order_id'),
+                tp_order_ids=d.get('tp_order_ids', []),
+                entry2_placed=d.get('entry2_placed', False),
+            )
+        log.info(f"Загружено {len(positions)} позиций из {STATE_FILE}")
+        return positions
+    except Exception as e:
+        log.warning(f"load_state: {e}")
+        return {}
+
+class DailyStopGuard:
+    """Считает стопы за UTC-день. При достижении лимита блокирует новые входы до следующего дня."""
+    def __init__(self, max_stops: int):
+        self.max_stops = max_stops
+        self.count     = 0
+        self._day      = self._today()
+
+    def _today(self):
+        from datetime import datetime, timezone
+        return datetime.now(timezone.utc).date()
+
+    def _check_day(self):
+        today = self._today()
+        if today != self._day:
+            self._day  = today
+            self.count = 0
+            log.info("DailyStopGuard: новый день UTC — счётчик сброшен")
+
+    def register_stop(self):
+        self._check_day()
+        self.count += 1
+        log.warning(f"DailyStopGuard: стоп #{self.count} / {self.max_stops}")
+
+    def is_blocked(self) -> bool:
+        if self.max_stops == 0:
+            return False
+        self._check_day()
+        if self.count >= self.max_stops:
+            log.warning(f"DailyStopGuard: лимит {self.max_stops} стопов — торговля приостановлена до следующего дня UTC")
+            return True
+        return False
 
 @dataclass
 class Signal:
@@ -264,6 +355,7 @@ class BaseExecutor(ABC):
 
     def __init__(self):
         self.positions: dict[str, PositionState] = {}
+        self.stop_guard = DailyStopGuard(MAX_DAILY_STOPS)
 
     @abstractmethod
     async def init(self): ...
@@ -275,7 +367,8 @@ class BaseExecutor(ABC):
 
     @abstractmethod
     async def _place_limit(self, sym: str, side: str, qty: float, price: float,
-                           reduce_only: bool = False, client_id: str = "") -> str:
+                           reduce_only: bool = False, client_id: str = "",
+                           direction: str = "LONG") -> str:
         """Возвращает order_id."""
         ...
 
@@ -327,6 +420,10 @@ class BaseExecutor(ABC):
     async def on_new_signal(self, signal: Signal):
         sym = self.exchange_symbol(signal)
 
+        if self.stop_guard.is_blocked():
+            log.warning(f"SKIP [{signal.symbol}]: дневной лимит стопов достигнут")
+            return
+
         if not self.symbol_available(signal.symbol):
             log.warning(f"SKIP: {signal.symbol} не найден на бирже")
             return
@@ -341,36 +438,43 @@ class BaseExecutor(ABC):
         side       = "buy"  if signal.direction == "LONG" else "sell"
         close_side = "sell" if signal.direction == "LONG" else "buy"
 
+        # Проверяем что цена ещё не ушла от entry1 в сторону TP
+        try:
+            ticker = await self.ex.fetch_ticker(sym)
+            current = ticker['last']
+            dist_entry_tp1 = abs(signal.tp1 - signal.entry1)
+            dist_entry_cur = abs(current - signal.entry1)
+            moved_toward_tp = (
+                (signal.direction == "LONG" and current > signal.entry1) or
+                (signal.direction == "SHORT" and current < signal.entry1)
+            )
+            if moved_toward_tp and dist_entry_tp1 > 0 and dist_entry_cur > dist_entry_tp1 * 0.5:
+                log.warning(f"[{signal.symbol}] SKIP: цена прошла >50% к TP1 (entry={signal.entry1} cur={current:.6f} tp1={signal.tp1})")
+                return
+            log.info(f"[{signal.symbol}] Цена OK: cur={current:.6f} entry={signal.entry1}")
+        except Exception as e:
+            log.warning(f"[{signal.symbol}] Проверка цены: {e} — продолжаем")
+
         # ENTRY1 — 1/3 лота
         entry1_lot = round(total_lot / 3, 6)
         log.info(f"[{signal.symbol}] ENTRY1: {entry1_lot} @ {signal.entry1}  (1/3 лота)")
         try:
             entry1_id = await self._place_limit(sym, side, entry1_lot, signal.entry1,
-                                                client_id=f"1{int(time.time())}")
+                                                client_id=f"1{int(time.time())}",
+                                                direction=signal.direction)
             log.info(f"[{signal.symbol}] ENTRY1 id={entry1_id}")
         except Exception as e:
             log.error(f"ENTRY1 failed: {e}")
             return
 
-        # SL — на весь лот сразу (защита с первого входа)
-        sl_id = None
-        try:
-            sl_id = await self._place_stop_market(sym, close_side, total_lot, signal.sl,
-                                                   client_id=f"3{int(time.time())}")
-            log.info(f"[{signal.symbol}] SL: {total_lot} @ stop {signal.sl}  id={sl_id}")
-        except Exception as e:
-            log.error(f"SL failed: {e}")
-
-        # TP по исходным уровням (могут быть переопределены при ENTRY2)
-        tp_ids = await self._place_tp_orders(sym, signal, total_lot, close_side,
-                                              signal.tp1, signal.tp2, signal.tp3)
-
+        # SL и TP ставятся в _poll_position после того как ENTRY1 заполнен
+        # (OKX не принимает close-ордера без открытой позиции)
         self.positions[signal.symbol] = PositionState(
             signal=signal,
             total_lot=total_lot,
             entry_order_ids=[entry1_id],
-            sl_order_id=sl_id,
-            tp_order_ids=tp_ids,
+            sl_order_id=None,
+            tp_order_ids=[],
         )
         log.info(f"[{signal.symbol}] Позиция открыта. Ждём ENTRY2.")
         asyncio.create_task(self._poll_position(signal.symbol))
@@ -395,7 +499,8 @@ class BaseExecutor(ABC):
         log.info(f"[{upd.symbol}] ENTRY2: {entry2_lot} @ {upd.entry2}  (2/3 лота)")
         try:
             entry2_id = await self._place_limit(sym, side, entry2_lot, upd.entry2,
-                                                client_id=f"2{int(time.time())}")
+                                                client_id=f"2{int(time.time())}",
+                                                direction=signal.direction)
             pos.entry_order_ids.append(entry2_id)
             pos.entry2_placed = True
             log.info(f"[{upd.symbol}] ENTRY2 id={entry2_id}")
@@ -469,8 +574,23 @@ class BaseExecutor(ABC):
                     continue
 
                 if status == "closed":
-                    log.info(f"[{symbol}] ENTRY1 заполнен — позиция открыта, биржа следит за SL/TP")
+                    log.info(f"[{symbol}] ENTRY1 заполнен — ставим SL и TP")
                     entry1_filled = True
+                    # Теперь позиция открыта — ставим SL и TP
+                    sig = pos.signal
+                    sym2 = self.exchange_symbol(sig)
+                    cs = "sell" if sig.direction == "LONG" else "buy"
+                    try:
+                        sl_id = await self._place_stop_market(sym2, cs, pos.total_lot, sig.sl,
+                                                               client_id=f"3{int(time.time())}")
+                        pos.sl_order_id = sl_id
+                        log.info(f"[{symbol}] SL выставлен id={sl_id}")
+                    except Exception as e:
+                        log.error(f"[{symbol}] SL failed: {e}")
+                    tp_ids = await self._place_tp_orders(sym2, sig, pos.total_lot, cs,
+                                                         sig.tp1, sig.tp2, sig.tp3)
+                    pos.tp_order_ids = tp_ids
+                    save_state(self.positions)
                     # Дальше следим за SL чтобы отменить ENTRY2
 
                 elif status in ("canceled", "unknown"):
@@ -490,6 +610,7 @@ class BaseExecutor(ABC):
 
                 if status == "closed":
                     log.info(f"[{symbol}] SL исполнен — отменяем незаполненный ENTRY2")
+                    self.stop_guard.register_stop()
                     # Отменяем только ENTRY2 (SL уже закрыт, TP — reduceOnly, биржа уберёт)
                     for oid in pos.entry_order_ids[1:]:  # entry2 и далее
                         try:
@@ -517,8 +638,32 @@ class BaseExecutor(ABC):
 
     async def on_closed(self, symbol: str, reason: str):
         if symbol in self.positions:
+            pos = self.positions[symbol]
+            sym = self.exchange_symbol(pos.signal)
+            # Отменяем все висящие ордера (entry1/entry2 незаполненные)
+            all_oids = pos.entry_order_ids + pos.tp_order_ids
+            if pos.sl_order_id:
+                all_oids.append(pos.sl_order_id)
+            for oid in all_oids:
+                try:
+                    await self._cancel_order(sym, oid)
+                except Exception:
+                    pass
             del self.positions[symbol]
-            log.info(f"[{symbol}] Позиция закрыта ({reason}), состояние очищено")
+            save_state(self.positions)
+            log.info(f"[{symbol}] Позиция закрыта ({reason}), все ордера отменены")
+
+    async def _fetch_position_size(self, sym: str, direction: str) -> float:
+        """Возвращает размер открытой позиции на бирже (0 если нет)."""
+        try:
+            positions = await self.ex.fetch_positions([sym])
+            side = "long" if direction == "LONG" else "short"
+            for p in positions:
+                if p.get("side") == side and (p.get("contracts") or 0) > 0:
+                    return float(p["contracts"])
+        except Exception as e:
+            log.warning(f"fetch_position_size {sym}: {e}")
+        return 0.0
 
     async def _place_tp_orders(self, sym: str, signal: Signal, total_lot: float,
                                 close_side: str, tp1: float, tp2: float, tp3: float) -> list[str]:
@@ -529,7 +674,8 @@ class BaseExecutor(ABC):
             try:
                 oid = await self._place_limit(sym, close_side, qty, price,
                                               reduce_only=True,
-                                              client_id=f"4{hash(name) % 10}{int(time.time())}")
+                                              client_id=f"4{hash(name) % 10}{int(time.time())}",
+                                              direction=signal.direction)
                 tp_ids.append(oid)
                 log.info(f"  {name}: {qty} @ {price}  id={oid}")
             except Exception as e:
@@ -642,10 +788,8 @@ class OKXExecutor(BaseExecutor):
         return {"tdMode": "cross", "posSide": pos_side}
 
     async def _place_limit(self, sym: str, side: str, qty: float, price: float,
-                           reduce_only: bool = False, client_id: str = "") -> str:
-        pos = self.positions.get(next((k for k, v in self.positions.items()
-                                       if self.exchange_symbol(v.signal) == sym), ""))
-        direction = pos.signal.direction if pos else "LONG"
+                           reduce_only: bool = False, client_id: str = "",
+                           direction: str = "LONG") -> str:
         params = {**self._bp(direction), "clOrdId": client_id}
         if reduce_only: params["reduceOnly"] = True
         o = await self.ex.create_order(sym, "limit", side, qty, price, params=params)
@@ -811,9 +955,8 @@ class BinanceExecutor(BaseExecutor):
         return "LONG" if direction == "LONG" else "SHORT"
 
     async def _place_limit(self, sym: str, side: str, qty: float, price: float,
-                           reduce_only: bool = False, client_id: str = "") -> str:
-        pos = self.positions.get(sym)
-        direction = pos.signal.direction if pos else "LONG"
+                           reduce_only: bool = False, client_id: str = "",
+                           direction: str = "LONG") -> str:
         params = {"positionSide": self._pos_side(direction)}
         if reduce_only: params["reduceOnly"] = True
         o = await self.ex.create_order(sym, "LIMIT", side, qty, price, params=params)
@@ -885,11 +1028,31 @@ async def main():
 
             elif mtype == "TP_HIT":
                 m = re.search(r"#(\w+USDT)", text)
-                if m: await executor.on_closed(m.group(1), "TP_HIT")
+                if m:
+                    sym = m.group(1)
+                    pos = executor.positions.get(sym)
+                    if pos and pos.sl_order_id:
+                        # Позиция открыта, SL есть — нормальное закрытие по TP
+                        await executor.on_closed(sym, "TP_HIT")
+                    elif pos:
+                        # ENTRY1 ещё не заполнен — проверяем биржу
+                        exsym = executor.exchange_symbol(pos.signal)
+                        real_size = await executor._fetch_position_size(exsym, pos.signal.direction)
+                        if real_size > 0:
+                            # Позиция есть, SL просто ещё не выставлен — поллинг разберётся
+                            log.info(f"[{sym}] TP_HIT но позиция уже открыта ({real_size}) — ждём поллинга")
+                        else:
+                            # Позиции нет — канал закрыл до нашего входа, отменяем ENTRY1
+                            log.info(f"[{sym}] TP_HIT из канала, позиции нет — отменяем вход")
+                            await executor.on_closed(sym, "TP_HIT_NO_POSITION")
 
             elif mtype == "SL_HIT":
                 m = re.search(r"#(\w+USDT)", text)
-                if m: await executor.on_closed(m.group(1), "SL_HIT")
+                if m:
+                    _sl_sym = m.group(1)
+                    if _sl_sym in executor.positions:
+                        executor.stop_guard.register_stop()
+                    await executor.on_closed(_sl_sym, "SL_HIT")
 
         except Exception as e:
             log.error(f"Handler error: {e}", exc_info=True)
