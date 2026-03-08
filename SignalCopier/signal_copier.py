@@ -346,7 +346,7 @@ class BaseExecutor(ABC):
         log.info(f"[{signal.symbol}] ENTRY1: {entry1_lot} @ {signal.entry1}  (1/3 лота)")
         try:
             entry1_id = await self._place_limit(sym, side, entry1_lot, signal.entry1,
-                                                client_id=f"e1_{int(time.time())}")
+                                                client_id=f"1{int(time.time())}")
             log.info(f"[{signal.symbol}] ENTRY1 id={entry1_id}")
         except Exception as e:
             log.error(f"ENTRY1 failed: {e}")
@@ -356,7 +356,7 @@ class BaseExecutor(ABC):
         sl_id = None
         try:
             sl_id = await self._place_stop_market(sym, close_side, total_lot, signal.sl,
-                                                   client_id=f"sl_{int(time.time())}")
+                                                   client_id=f"3{int(time.time())}")
             log.info(f"[{signal.symbol}] SL: {total_lot} @ stop {signal.sl}  id={sl_id}")
         except Exception as e:
             log.error(f"SL failed: {e}")
@@ -395,7 +395,7 @@ class BaseExecutor(ABC):
         log.info(f"[{upd.symbol}] ENTRY2: {entry2_lot} @ {upd.entry2}  (2/3 лота)")
         try:
             entry2_id = await self._place_limit(sym, side, entry2_lot, upd.entry2,
-                                                client_id=f"e2_{int(time.time())}")
+                                                client_id=f"2{int(time.time())}")
             pos.entry_order_ids.append(entry2_id)
             pos.entry2_placed = True
             log.info(f"[{upd.symbol}] ENTRY2 id={entry2_id}")
@@ -529,7 +529,7 @@ class BaseExecutor(ABC):
             try:
                 oid = await self._place_limit(sym, close_side, qty, price,
                                               reduce_only=True,
-                                              client_id=f"{name.lower()}_{int(time.time())}")
+                                              client_id=f"4{hash(name) % 10}{int(time.time())}")
                 tp_ids.append(oid)
                 log.info(f"  {name}: {qty} @ {price}  id={oid}")
             except Exception as e:
@@ -548,10 +548,10 @@ class OKXExecutor(BaseExecutor):
         super().__init__()
         # aiohttp с ThreadedResolver обходит проблему aiodns на Windows
         connector = aiohttp.TCPConnector(resolver=aiohttp.ThreadedResolver(), ssl=False)
-        session = aiohttp.ClientSession(connector=connector)
+        self._session = aiohttp.ClientSession(connector=connector)
         params = {"apiKey": OKX_API_KEY, "secret": OKX_SECRET, "password": OKX_PASSPHRASE,
                   "options": {"defaultType": "swap"},
-                  "session": session}
+                  "session": self._session}
         if OKX_TESTNET:
             params["sandbox"] = True
             log.warning("⚠️  OKX TESTNET MODE")
@@ -564,6 +564,8 @@ class OKXExecutor(BaseExecutor):
 
     async def close(self):
         await self.ex.close()
+        if hasattr(self, "_session") and not self._session.closed:
+            await self._session.close()
 
     def exchange_symbol(self, signal: Signal) -> str:
         return signal.okx_symbol
@@ -599,7 +601,7 @@ class OKXExecutor(BaseExecutor):
         markets = await self.ex.load_markets()
         info = markets.get(sym, {})
         try:
-            return int(float(info.get("info", {}).get("maxLever", MAX_LEVERAGE)))
+            return int(info.get("limits", {}).get("leverage", {}).get("max", MAX_LEVERAGE) or MAX_LEVERAGE)
         except Exception:
             return MAX_LEVERAGE
 
@@ -607,11 +609,20 @@ class OKXExecutor(BaseExecutor):
         max_lev = await self._max_leverage(sym)
         leverage = min(leverage, max_lev)
         side = "long" if direction == "LONG" else "short"
-        try:
-            await self.ex.set_leverage(leverage, sym, params={"mgnMode": "cross", "posSide": side})
-            log.info(f"Leverage: {leverage}x (max={max_lev}x) on {sym}")
-        except Exception as e:
-            log.warning(f"set_leverage: {e}")
+        # Пробуем с запрошенным плечом, при ошибке снижаем до 1
+        while leverage >= 1:
+            try:
+                await self.ex.set_leverage(leverage, sym, params={"mgnMode": "cross", "posSide": side})
+                log.info(f"Leverage: {leverage}x (max={max_lev}x) on {sym}")
+                return
+            except Exception as e:
+                msg = str(e)
+                if "59102" in msg or "exceeds" in msg.lower():
+                    leverage -= 1
+                    log.warning(f"Leverage too high, trying {leverage}x...")
+                else:
+                    log.warning(f"set_leverage: {e}")
+                    return
 
     async def _calc_lot(self, signal: Signal) -> float:
         markets = await self.ex.load_markets()
@@ -885,8 +896,11 @@ async def main():
 
     try:
         await client.run_until_disconnected()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
     finally:
         await executor.close()
+        log.info("Остановлено.")
 
 
 if __name__ == "__main__":
