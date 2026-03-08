@@ -32,9 +32,9 @@ load_dotenv()
 
 TG_API_ID       = int(os.environ["TG_API_ID"])
 TG_API_HASH     = os.environ["TG_API_HASH"]
-TG_SESSION_FILE = "cryptonus_session"
-SIGNAL_CHANNEL  = "Cryptonus_Trade"
-CACHE_FILE      = "history_cache.json"
+TG_SESSION_FILE = "cryptonus_session"   # переопределяется через --session
+SIGNAL_CHANNEL  = "Cryptonus_Trade"     # переопределяется через --channel
+CACHE_FILE      = "history_cache.json"  # переопределяется автоматически
 
 # ---------------------------------------------------------------------------
 # Модель сделки
@@ -546,4 +546,15 @@ if __name__ == "__main__":
     p.add_argument("--limit",    type=int,  default=2000)
     p.add_argument("--no-fetch", action="store_true")
     p.add_argument("--symbol",   type=str,  default=None)
-    asyncio.run(async_main(p.parse_args()))
+    p.add_argument("--channel",  type=str,  default=None, help="Username канала (без @)")
+    p.add_argument("--session",  type=str,  default=None, help="Имя session файла (без .session)")
+    args = p.parse_args()
+    # Переопределяем глобалы если переданы аргументы
+    if args.channel:
+        import __main__
+        __main__.SIGNAL_CHANNEL = args.channel
+        __main__.CACHE_FILE = f"history_cache_{args.channel}.json"
+    if args.session:
+        import __main__
+        __main__.TG_SESSION_FILE = args.session
+    asyncio.run(async_main(args))
