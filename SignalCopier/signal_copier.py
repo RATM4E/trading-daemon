@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Optional
 
 import ccxt.async_support as ccxt
+import aiohttp
 from dotenv import load_dotenv
 from telethon import TelegramClient, events
 
@@ -545,8 +546,12 @@ class OKXExecutor(BaseExecutor):
 
     def __init__(self):
         super().__init__()
+        # aiohttp с ThreadedResolver обходит проблему aiodns на Windows
+        connector = aiohttp.TCPConnector(resolver=aiohttp.ThreadedResolver(), ssl=False)
+        session = aiohttp.ClientSession(connector=connector)
         params = {"apiKey": OKX_API_KEY, "secret": OKX_SECRET, "password": OKX_PASSPHRASE,
-                  "options": {"defaultType": "swap"}}
+                  "options": {"defaultType": "swap"},
+                  "session": session}
         if OKX_TESTNET:
             params["sandbox"] = True
             log.warning("⚠️  OKX TESTNET MODE")
