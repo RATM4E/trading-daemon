@@ -19,6 +19,7 @@ venv/
 
 # ===== API Keys & Secrets =====
 config.json
+.env
 
 # ===== Data Files =====
 *.csv
@@ -39,3 +40,18 @@ desktop.ini
 # ===== IDE =====
 .idea/
 .vscode/
+
+# ===== Signal Copier =====
+# Telegram сессия (даёт полный доступ к аккаунту)
+*.session
+*.session-journal
+
+# Кэши истории каналов (большие файлы, пересоздаются)
+history_cache_*.json
+
+# Runtime state позиций
+positions_state.json
+
+# Кэши символов бирж (пересоздаются при старте)
+okx_symbols.json
+binance_symbols.json
