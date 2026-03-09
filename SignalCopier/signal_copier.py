@@ -458,25 +458,34 @@ class BaseExecutor(ABC):
         # ENTRY1 — 1/3 лота
         entry1_lot = round(total_lot / 3, 6)
         log.info(f"[{signal.symbol}] ENTRY1: {entry1_lot} @ {signal.entry1}  (1/3 лота)")
+
+        # Сохраняем позицию ДО размещения ордера — если скрипт упадёт после place_limit,
+        # при рестарте мы знаем что позиция существует
+        self.positions[signal.symbol] = PositionState(
+            signal=signal,
+            total_lot=total_lot,
+            entry_order_ids=[],
+            sl_order_id=None,
+            tp_order_ids=[],
+        )
+        save_state(self.positions)
+
         try:
             entry1_id = await self._place_limit(sym, side, entry1_lot, signal.entry1,
-                                                client_id=f"1{int(time.time())}",
+                                                client_id=f"1{time.time_ns() % 10**14}",
                                                 direction=signal.direction)
             log.info(f"[{signal.symbol}] ENTRY1 id={entry1_id}")
         except Exception as e:
             log.error(f"ENTRY1 failed: {e}")
+            del self.positions[signal.symbol]
+            save_state(self.positions)
             return
 
         # SL и TP ставятся в _poll_position после того как ENTRY1 заполнен
         # (OKX не принимает close-ордера без открытой позиции)
-        self.positions[signal.symbol] = PositionState(
-            signal=signal,
-            total_lot=total_lot,
-            entry_order_ids=[entry1_id],
-            sl_order_id=None,
-            tp_order_ids=[],
-        )
-        log.info(f"[{signal.symbol}] Позиция открыта. Ждём ENTRY2.")
+        self.positions[signal.symbol].entry_order_ids = [entry1_id]
+        save_state(self.positions)
+        log.info(f"[{signal.symbol}] Позиция зафиксирована. Ждём заполнения ENTRY1.")
         asyncio.create_task(self._poll_position(signal.symbol))
 
     async def on_entry2_and_new_tp(self, upd: Entry2Update):
@@ -499,7 +508,7 @@ class BaseExecutor(ABC):
         log.info(f"[{upd.symbol}] ENTRY2: {entry2_lot} @ {upd.entry2}  (2/3 лота)")
         try:
             entry2_id = await self._place_limit(sym, side, entry2_lot, upd.entry2,
-                                                client_id=f"2{int(time.time())}",
+                                                client_id=f"2{time.time_ns() % 10**14}",
                                                 direction=signal.direction)
             pos.entry_order_ids.append(entry2_id)
             pos.entry2_placed = True
@@ -555,7 +564,11 @@ class BaseExecutor(ABC):
         4. SL closed → отменяем незаполненные ENTRY2, TP биржа закроет сама
         """
         log.info(f"[{symbol}] Поллинг запущен (каждые {POLL_INTERVAL}s)")
-        entry1_filled = False
+        # Если после рестарта SL уже выставлен — ENTRY1 уже был заполнен
+        pos0 = self.positions.get(symbol)
+        entry1_filled = bool(pos0 and pos0.sl_order_id)
+        if entry1_filled:
+            log.info(f"[{symbol}] Восстановлено из state: entry1_filled=True")
 
         while symbol in self.positions:
             await asyncio.sleep(POLL_INTERVAL)
@@ -576,20 +589,31 @@ class BaseExecutor(ABC):
                 if status == "closed":
                     log.info(f"[{symbol}] ENTRY1 заполнен — ставим SL и TP")
                     entry1_filled = True
-                    # Теперь позиция открыта — ставим SL и TP
                     sig = pos.signal
                     sym2 = self.exchange_symbol(sig)
                     cs = "sell" if sig.direction == "LONG" else "buy"
-                    try:
-                        sl_id = await self._place_stop_market(sym2, cs, pos.total_lot, sig.sl,
-                                                               client_id=f"3{int(time.time())}")
-                        pos.sl_order_id = sl_id
-                        log.info(f"[{symbol}] SL выставлен id={sl_id}")
-                    except Exception as e:
-                        log.error(f"[{symbol}] SL failed: {e}")
-                    tp_ids = await self._place_tp_orders(sym2, sig, pos.total_lot, cs,
-                                                         sig.tp1, sig.tp2, sig.tp3)
-                    pos.tp_order_ids = tp_ids
+                    # SL — только если ещё не выставлен (защита от двойного выставления при рестарте)
+                    if not pos.sl_order_id:
+                        try:
+                            sl_id = await self._place_stop_market(sym2, cs, pos.total_lot, sig.sl,
+                                                                   client_id=f"3{time.time_ns() % 10**14}")
+                            pos.sl_order_id = sl_id
+                            log.info(f"[{symbol}] SL выставлен id={sl_id}")
+                        except Exception as e:
+                            log.error(f"[{symbol}] SL failed: {e}")
+                    else:
+                        log.info(f"[{symbol}] SL уже выставлен — пропускаем")
+                    # TP — только если ещё не выставлен
+                    if not pos.tp_order_ids:
+                        tp_ids = await self._place_tp_orders(sym2, sig, pos.total_lot, cs,
+                                                             sig.tp1, sig.tp2, sig.tp3)
+                        pos.tp_order_ids = tp_ids
+                        if tp_ids:
+                            log.info(f"[{symbol}] TP выставлен: {tp_ids}")
+                        else:
+                            log.warning(f"[{symbol}] TP не выставлен — будет retry на следующем тике")
+                    else:
+                        log.info(f"[{symbol}] TP уже выставлен — пропускаем")
                     save_state(self.positions)
                     # Дальше следим за SL чтобы отменить ENTRY2
 
@@ -599,6 +623,19 @@ class BaseExecutor(ABC):
                     await self.on_closed(symbol, "ENTRY_NOT_FILLED")
                     return
                 # else: open — ждём следующей итерации
+
+            # --- Retry TP если не выставлен ---
+            if entry1_filled and pos.sl_order_id and not pos.tp_order_ids:
+                sig = pos.signal
+                sym2 = self.exchange_symbol(sig)
+                cs = "sell" if sig.direction == "LONG" else "buy"
+                log.info(f"[{symbol}] Retry TP...")
+                tp_ids = await self._place_tp_orders(sym2, sig, pos.total_lot, cs,
+                                                     sig.tp1, sig.tp2, sig.tp3)
+                if tp_ids:
+                    pos.tp_order_ids = tp_ids
+                    save_state(self.positions)
+                    log.info(f"[{symbol}] TP выставлен (retry): {tp_ids}")
 
             # --- После заполнения ENTRY1: следим за SL ---
             elif entry1_filled and pos.sl_order_id:
@@ -674,7 +711,7 @@ class BaseExecutor(ABC):
             try:
                 oid = await self._place_limit(sym, close_side, qty, price,
                                               reduce_only=True,
-                                              client_id=f"4{hash(name) % 10}{int(time.time())}",
+                                              client_id=f"4{abs(hash(name)) % 10}{time.time_ns() % 10**14}",
                                               direction=signal.direction)
                 tp_ids.append(oid)
                 log.info(f"  {name}: {qty} @ {price}  id={oid}")
