@@ -1,6 +1,6 @@
 [
   {
-    "id": "ff-JPY-202603082330-57671941",
+    "id": "ff-JPY-202603082330-92A48D78",
     "time_utc": "2026-03-08T23:30:00Z",
     "currency": "JPY",
     "title": "Average Cash Earnings y/y",
@@ -10,7 +10,7 @@
     "previous": "2.4%"
   },
   {
-    "id": "ff-JPY-202603082350-8F55165C",
+    "id": "ff-JPY-202603082350-B2F67CDE",
     "time_utc": "2026-03-08T23:50:00Z",
     "currency": "JPY",
     "title": "Bank Lending y/y",
@@ -20,7 +20,7 @@
     "previous": "4.5%"
   },
   {
-    "id": "ff-JPY-202603082350-49AC3884",
+    "id": "ff-JPY-202603082350-BD1A24FD",
     "time_utc": "2026-03-08T23:50:00Z",
     "currency": "JPY",
     "title": "Current Account",
@@ -30,7 +30,7 @@
     "previous": "2.70T"
   },
   {
-    "id": "ff-CNY-202603090130-556ABE4B",
+    "id": "ff-CNY-202603090130-1850DC05",
     "time_utc": "2026-03-09T01:30:00Z",
     "currency": "CNY",
     "title": "CPI y/y",
@@ -40,7 +40,7 @@
     "previous": "0.2%"
   },
   {
-    "id": "ff-CNY-202603090130-5EE6A672",
+    "id": "ff-CNY-202603090130-CACC69DF",
     "time_utc": "2026-03-09T01:30:00Z",
     "currency": "CNY",
     "title": "PPI y/y",
@@ -50,7 +50,7 @@
     "previous": "-1.4%"
   },
   {
-    "id": "ff-JPY-202603090500-ED37E6D6",
+    "id": "ff-JPY-202603090500-455D4447",
     "time_utc": "2026-03-09T05:00:00Z",
     "currency": "JPY",
     "title": "Leading Indicators",
@@ -60,7 +60,7 @@
     "previous": "110.2%"
   },
   {
-    "id": "ff-JPY-202603090600-6C699EC2",
+    "id": "ff-JPY-202603090600-242BF41A",
     "time_utc": "2026-03-09T06:00:00Z",
     "currency": "JPY",
     "title": "Economy Watchers Sentiment",
@@ -70,7 +70,7 @@
     "previous": "47.6"
   },
   {
-    "id": "ff-EUR-202603090700-CE310CFA",
+    "id": "ff-EUR-202603090700-5EE0958D",
     "time_utc": "2026-03-09T07:00:00Z",
     "currency": "EUR",
     "title": "German Factory Orders m/m",
@@ -80,7 +80,7 @@
     "previous": "7.8%"
   },
   {
-    "id": "ff-EUR-202603090700-C8EB0C80",
+    "id": "ff-EUR-202603090700-0E4176B9",
     "time_utc": "2026-03-09T07:00:00Z",
     "currency": "EUR",
     "title": "German Industrial Production m/m",
@@ -90,7 +90,7 @@
     "previous": "-1.9%"
   },
   {
-    "id": "ff-CHF-202603090800-682AA5B6",
+    "id": "ff-CHF-202603090800-DFC74B52",
     "time_utc": "2026-03-09T08:00:00Z",
     "currency": "CHF",
     "title": "SECO Consumer Climate",
@@ -100,7 +100,7 @@
     "previous": "-30"
   },
   {
-    "id": "ff-EUR-202603090930-D2BCA4C7",
+    "id": "ff-EUR-202603090930-22FA2D65",
     "time_utc": "2026-03-09T09:30:00Z",
     "currency": "EUR",
     "title": "Sentix Investor Confidence",
@@ -110,7 +110,7 @@
     "previous": "4.2"
   },
   {
-    "id": "ff-EUR-202603091015-A5A20DAC",
+    "id": "ff-EUR-202603091015-31B67682",
     "time_utc": "2026-03-09T10:15:00Z",
     "currency": "EUR",
     "title": "Eurogroup Meetings",
@@ -120,7 +120,17 @@
     "previous": ""
   },
   {
-    "id": "ff-AUD-202603092330-B0572FE6",
+    "id": "ff-USD-202603092130-46863365",
+    "time_utc": "2026-03-09T21:30:00Z",
+    "currency": "USD",
+    "title": "President Trump Speaks",
+    "impact": 2,
+    "actual": null,
+    "forecast": "",
+    "previous": ""
+  },
+  {
+    "id": "ff-AUD-202603092330-4E044F1A",
     "time_utc": "2026-03-09T23:30:00Z",
     "currency": "AUD",
     "title": "Westpac Consumer Sentiment",
@@ -130,17 +140,17 @@
     "previous": "-2.6%"
   },
   {
-    "id": "ff-JPY-202603092330-B8040BD3",
+    "id": "ff-JPY-202603092330-A9A24B48",
     "time_utc": "2026-03-09T23:30:00Z",
     "currency": "JPY",
     "title": "Household Spending y/y",
     "impact": 1,
     "actual": null,
-    "forecast": "2.3%",
+    "forecast": "2.4%",
     "previous": "-2.6%"
   },
   {
-    "id": "ff-JPY-202603092350-F0A44ABA",
+    "id": "ff-JPY-202603092350-CD5F1F2D",
     "time_utc": "2026-03-09T23:50:00Z",
     "currency": "JPY",
     "title": "Final GDP Price Index y/y",
@@ -150,7 +160,7 @@
     "previous": "3.4%"
   },
   {
-    "id": "ff-JPY-202603092350-7BD10E64",
+    "id": "ff-JPY-202603092350-B652F289",
     "time_utc": "2026-03-09T23:50:00Z",
     "currency": "JPY",
     "title": "Final GDP q/q",
@@ -160,7 +170,7 @@
     "previous": "0.1%"
   },
   {
-    "id": "ff-JPY-202603092350-934BBEAF",
+    "id": "ff-JPY-202603092350-36F45AE6",
     "time_utc": "2026-03-09T23:50:00Z",
     "currency": "JPY",
     "title": "M2 Money Stock y/y",
@@ -170,17 +180,17 @@
     "previous": "1.6%"
   },
   {
-    "id": "ff-GBP-202603100001-EB605302",
+    "id": "ff-GBP-202603100001-81744732",
     "time_utc": "2026-03-10T00:01:00Z",
     "currency": "GBP",
     "title": "BRC Retail Sales Monitor y/y",
     "impact": 1,
     "actual": null,
-    "forecast": "2.1%",
+    "forecast": "2.0%",
     "previous": "2.3%"
   },
   {
-    "id": "ff-AUD-202603100030-AC355874",
+    "id": "ff-AUD-202603100030-A3F4AEBE",
     "time_utc": "2026-03-10T00:30:00Z",
     "currency": "AUD",
     "title": "NAB Business Confidence",
@@ -190,27 +200,27 @@
     "previous": "3"
   },
   {
-    "id": "ff-CNY-202603100303-3B00C6B3",
-    "time_utc": "2026-03-10T03:03:00Z",
-    "currency": "CNY",
-    "title": "Trade Balance",
-    "impact": 1,
-    "actual": null,
-    "forecast": "950B",
-    "previous": "809B"
-  },
-  {
-    "id": "ff-CNY-202603100304-27BAE6E4",
-    "time_utc": "2026-03-10T03:04:00Z",
+    "id": "ff-CNY-202603100301-BCF0D37E",
+    "time_utc": "2026-03-10T03:01:00Z",
     "currency": "CNY",
     "title": "USD-Denominated Trade Balance",
     "impact": 1,
     "actual": null,
-    "forecast": "175.0B",
+    "forecast": "177.4B",
     "previous": "114.1B"
   },
   {
-    "id": "ff-JPY-202603100600-C173A1EB",
+    "id": "ff-CNY-202603100302-4ED163C6",
+    "time_utc": "2026-03-10T03:02:00Z",
+    "currency": "CNY",
+    "title": "Trade Balance",
+    "impact": 1,
+    "actual": null,
+    "forecast": "1250B",
+    "previous": "809B"
+  },
+  {
+    "id": "ff-JPY-202603100600-43A9D2D1",
     "time_utc": "2026-03-10T06:00:00Z",
     "currency": "JPY",
     "title": "Prelim Machine Tool Orders y/y",
@@ -220,47 +230,27 @@
     "previous": "25.3%"
   },
   {
-    "id": "ff-EUR-202603100700-BAB17516",
+    "id": "ff-EUR-202603100700-2E0E3583",
     "time_utc": "2026-03-10T07:00:00Z",
     "currency": "EUR",
     "title": "German Trade Balance",
     "impact": 1,
     "actual": null,
-    "forecast": "15.6B",
+    "forecast": "15.4B",
     "previous": "17.1B"
   },
   {
-    "id": "ff-EUR-202603100745-3DECC4D6",
+    "id": "ff-EUR-202603100745-E3B0F292",
     "time_utc": "2026-03-10T07:45:00Z",
     "currency": "EUR",
     "title": "French Trade Balance",
     "impact": 1,
     "actual": null,
-    "forecast": "-4.6B",
+    "forecast": "-5.2B",
     "previous": "-4.8B"
   },
   {
-    "id": "ff-CNY-202603100803-A6D7452D",
-    "time_utc": "2026-03-10T08:03:00Z",
-    "currency": "CNY",
-    "title": "M2 Money Supply y/y",
-    "impact": 1,
-    "actual": null,
-    "forecast": "8.9%",
-    "previous": "9.0%"
-  },
-  {
-    "id": "ff-CNY-202603100803-9710E5BF",
-    "time_utc": "2026-03-10T08:03:00Z",
-    "currency": "CNY",
-    "title": "New Loans",
-    "impact": 1,
-    "actual": null,
-    "forecast": "890B",
-    "previous": "4710B"
-  },
-  {
-    "id": "ff-EUR-202603100915-37EA8F40",
+    "id": "ff-EUR-202603100915-ED6A547F",
     "time_utc": "2026-03-10T09:15:00Z",
     "currency": "EUR",
     "title": "ECOFIN Meetings",
@@ -270,17 +260,17 @@
     "previous": ""
   },
   {
-    "id": "ff-USD-202603101000-B78B0F98",
+    "id": "ff-USD-202603101000-556815F9",
     "time_utc": "2026-03-10T10:00:00Z",
     "currency": "USD",
     "title": "NFIB Small Business Index",
     "impact": 1,
     "actual": null,
-    "forecast": "99.8",
+    "forecast": "99.6",
     "previous": "99.3"
   },
   {
-    "id": "ff-USD-202603101215-667D6399",
+    "id": "ff-USD-202603101215-5395F03B",
     "time_utc": "2026-03-10T12:15:00Z",
     "currency": "USD",
     "title": "ADP Weekly Employment Change",
@@ -290,7 +280,7 @@
     "previous": "12.8K"
   },
   {
-    "id": "ff-USD-202603101400-A9F41B58",
+    "id": "ff-USD-202603101400-30612138",
     "time_utc": "2026-03-10T14:00:00Z",
     "currency": "USD",
     "title": "Existing Home Sales",
@@ -300,7 +290,7 @@
     "previous": "3.91M"
   },
   {
-    "id": "ff-USD-202603102030-8973D8AB",
+    "id": "ff-USD-202603102030-1F596B87",
     "time_utc": "2026-03-10T20:30:00Z",
     "currency": "USD",
     "title": "API Weekly Statistical Bulletin",
@@ -310,7 +300,7 @@
     "previous": ""
   },
   {
-    "id": "ff-JPY-202603102350-5EE6A672",
+    "id": "ff-JPY-202603102350-CACC69DF",
     "time_utc": "2026-03-10T23:50:00Z",
     "currency": "JPY",
     "title": "PPI y/y",
@@ -320,7 +310,7 @@
     "previous": "2.3%"
   },
   {
-    "id": "ff-EUR-202603110700-98325E3C",
+    "id": "ff-EUR-202603110700-D18F6BD3",
     "time_utc": "2026-03-11T07:00:00Z",
     "currency": "EUR",
     "title": "German Final CPI m/m",
@@ -330,7 +320,7 @@
     "previous": "0.2%"
   },
   {
-    "id": "ff-GBP-202603111000-A54C51AE",
+    "id": "ff-GBP-202603111000-B245F91A",
     "time_utc": "2026-03-11T10:00:00Z",
     "currency": "GBP",
     "title": "MPC Member Breeden Speaks",
@@ -340,8 +330,8 @@
     "previous": ""
   },
   {
-    "id": "ff-EUR-202603111042-63D2FDAB",
-    "time_utc": "2026-03-11T10:42:00Z",
+    "id": "ff-EUR-202603111033-5A502F59",
+    "time_utc": "2026-03-11T10:33:00Z",
     "currency": "EUR",
     "title": "German 10-y Bond Auction",
     "impact": 1,
@@ -350,7 +340,7 @@
     "previous": "2.73|1.5"
   },
   {
-    "id": "ff-USD-202603111230-9048CC18",
+    "id": "ff-USD-202603111230-4A243593",
     "time_utc": "2026-03-11T12:30:00Z",
     "currency": "USD",
     "title": "Core CPI m/m",
@@ -360,7 +350,7 @@
     "previous": "0.3%"
   },
   {
-    "id": "ff-USD-202603111230-5CF41F33",
+    "id": "ff-USD-202603111230-991FF5AC",
     "time_utc": "2026-03-11T12:30:00Z",
     "currency": "USD",
     "title": "CPI m/m",
@@ -370,17 +360,17 @@
     "previous": "0.2%"
   },
   {
-    "id": "ff-USD-202603111230-556ABE4B",
+    "id": "ff-USD-202603111230-1850DC05",
     "time_utc": "2026-03-11T12:30:00Z",
     "currency": "USD",
     "title": "CPI y/y",
     "impact": 3,
     "actual": null,
-    "forecast": "2.5%",
+    "forecast": "2.4%",
     "previous": "2.4%"
   },
   {
-    "id": "ff-USD-202603111230-A50F04BA",
+    "id": "ff-USD-202603111230-65EA7F1D",
     "time_utc": "2026-03-11T12:30:00Z",
     "currency": "USD",
     "title": "FOMC Member Bowman Speaks",
@@ -390,17 +380,17 @@
     "previous": ""
   },
   {
-    "id": "ff-USD-202603111430-C2C0DC01",
+    "id": "ff-USD-202603111430-7629A70D",
     "time_utc": "2026-03-11T14:30:00Z",
     "currency": "USD",
     "title": "Crude Oil Inventories",
     "impact": 1,
     "actual": null,
-    "forecast": "",
+    "forecast": "2.8M",
     "previous": "3.5M"
   },
   {
-    "id": "ff-USD-202603111701-900F6A08",
+    "id": "ff-USD-202603111701-F6609711",
     "time_utc": "2026-03-11T17:01:00Z",
     "currency": "USD",
     "title": "10-y Bond Auction",
@@ -410,17 +400,27 @@
     "previous": "4.18|2.4"
   },
   {
-    "id": "ff-USD-202603111800-D508C6EE",
+    "id": "ff-USD-202603111800-4724E286",
     "time_utc": "2026-03-11T18:00:00Z",
     "currency": "USD",
     "title": "Federal Budget Balance",
     "impact": 1,
     "actual": null,
-    "forecast": "",
+    "forecast": "-304.4B",
     "previous": "-94.6B"
   },
   {
-    "id": "ff-NZD-202603112145-572CC7E3",
+    "id": "ff-USD-202603112025-46863365",
+    "time_utc": "2026-03-11T20:25:00Z",
+    "currency": "USD",
+    "title": "President Trump Speaks",
+    "impact": 2,
+    "actual": null,
+    "forecast": "",
+    "previous": ""
+  },
+  {
+    "id": "ff-NZD-202603112145-35244F09",
     "time_utc": "2026-03-11T21:45:00Z",
     "currency": "NZD",
     "title": "Manufacturing Sales q/q",
@@ -430,17 +430,17 @@
     "previous": "2.7%"
   },
   {
-    "id": "ff-JPY-202603112350-070E3E59",
+    "id": "ff-JPY-202603112350-1D04730F",
     "time_utc": "2026-03-11T23:50:00Z",
     "currency": "JPY",
     "title": "BSI Manufacturing Index",
     "impact": 1,
     "actual": null,
-    "forecast": "5.5",
+    "forecast": "5.3",
     "previous": "4.7"
   },
   {
-    "id": "ff-AUD-202603120000-C172879C",
+    "id": "ff-AUD-202603120000-B03509A6",
     "time_utc": "2026-03-12T00:00:00Z",
     "currency": "AUD",
     "title": "MI Inflation Expectations",
@@ -450,17 +450,37 @@
     "previous": "5.0%"
   },
   {
-    "id": "ff-GBP-202603120001-716F8A7D",
+    "id": "ff-GBP-202603120001-3B28F069",
     "time_utc": "2026-03-12T00:01:00Z",
     "currency": "GBP",
     "title": "RICS House Price Balance",
     "impact": 1,
     "actual": null,
-    "forecast": "-9%",
+    "forecast": "-8%",
     "previous": "-10%"
   },
   {
-    "id": "ff-EUR-202603120900-30CD95C1",
+    "id": "ff-CNY-202603120803-5304CA0D",
+    "time_utc": "2026-03-12T08:03:00Z",
+    "currency": "CNY",
+    "title": "M2 Money Supply y/y",
+    "impact": 1,
+    "actual": null,
+    "forecast": "8.9%",
+    "previous": "9.0%"
+  },
+  {
+    "id": "ff-CNY-202603120803-4EAAC84A",
+    "time_utc": "2026-03-12T08:03:00Z",
+    "currency": "CNY",
+    "title": "New Loans",
+    "impact": 1,
+    "actual": null,
+    "forecast": "865B",
+    "previous": "4710B"
+  },
+  {
+    "id": "ff-EUR-202603120900-82570AD0",
     "time_utc": "2026-03-12T09:00:00Z",
     "currency": "EUR",
     "title": "Italian Quarterly Unemployment Rate",
@@ -470,7 +490,7 @@
     "previous": "6.1%"
   },
   {
-    "id": "ff-GBP-202603120930-54CB4F64",
+    "id": "ff-GBP-202603120930-BB65D0AA",
     "time_utc": "2026-03-12T09:30:00Z",
     "currency": "GBP",
     "title": "BOE Gov Bailey Speaks",
@@ -480,37 +500,27 @@
     "previous": ""
   },
   {
-    "id": "ff-EUR-202603121033-24F809A9",
-    "time_utc": "2026-03-12T10:33:00Z",
-    "currency": "EUR",
-    "title": "Italian 10-y Bond Auction",
-    "impact": 1,
-    "actual": null,
-    "forecast": "",
-    "previous": ""
-  },
-  {
-    "id": "ff-CAD-202603121230-406057B2",
+    "id": "ff-CAD-202603121230-D0A99A5F",
     "time_utc": "2026-03-12T12:30:00Z",
     "currency": "CAD",
     "title": "Building Permits m/m",
     "impact": 1,
     "actual": null,
-    "forecast": "-0.6%",
+    "forecast": "-2.0%",
     "previous": "6.8%"
   },
   {
-    "id": "ff-CAD-202603121230-3B00C6B3",
+    "id": "ff-CAD-202603121230-4ED163C6",
     "time_utc": "2026-03-12T12:30:00Z",
     "currency": "CAD",
     "title": "Trade Balance",
     "impact": 1,
     "actual": null,
-    "forecast": "-1.2B",
+    "forecast": "-1.1B",
     "previous": "-1.3B"
   },
   {
-    "id": "ff-CAD-202603121230-967A1C06",
+    "id": "ff-CAD-202603121230-6D0CE8AD",
     "time_utc": "2026-03-12T12:30:00Z",
     "currency": "CAD",
     "title": "Wholesale Sales m/m",
@@ -520,27 +530,27 @@
     "previous": "2.0%"
   },
   {
-    "id": "ff-USD-202603121230-5551B3CE",
+    "id": "ff-USD-202603121230-31731DD3",
     "time_utc": "2026-03-12T12:30:00Z",
     "currency": "USD",
     "title": "Unemployment Claims",
     "impact": 3,
     "actual": null,
-    "forecast": "216K",
+    "forecast": "214K",
     "previous": "213K"
   },
   {
-    "id": "ff-USD-202603121230-FB75152A",
+    "id": "ff-USD-202603121230-A8FFA008",
     "time_utc": "2026-03-12T12:30:00Z",
     "currency": "USD",
     "title": "Building Permits",
     "impact": 1,
     "actual": null,
-    "forecast": "1.41M",
+    "forecast": "1.42M",
     "previous": "1.45M"
   },
   {
-    "id": "ff-USD-202603121230-56C1FBA7",
+    "id": "ff-USD-202603121230-1C6F9FE3",
     "time_utc": "2026-03-12T12:30:00Z",
     "currency": "USD",
     "title": "Housing Starts",
@@ -550,17 +560,17 @@
     "previous": "1.40M"
   },
   {
-    "id": "ff-USD-202603121230-3B00C6B3",
+    "id": "ff-USD-202603121230-4ED163C6",
     "time_utc": "2026-03-12T12:30:00Z",
     "currency": "USD",
     "title": "Trade Balance",
     "impact": 1,
     "actual": null,
-    "forecast": "-66.1B",
+    "forecast": "-66.6B",
     "previous": "-70.3B"
   },
   {
-    "id": "ff-GBP-202603121330-29BFF3A5",
+    "id": "ff-GBP-202603121330-F5AD38BA",
     "time_utc": "2026-03-12T13:30:00Z",
     "currency": "GBP",
     "title": "CB Leading Index m/m",
@@ -570,17 +580,17 @@
     "previous": "0.0%"
   },
   {
-    "id": "ff-USD-202603121430-A8901CAA",
+    "id": "ff-USD-202603121430-14FBFE42",
     "time_utc": "2026-03-12T14:30:00Z",
     "currency": "USD",
     "title": "Natural Gas Storage",
     "impact": 1,
     "actual": null,
-    "forecast": "",
+    "forecast": "-42B",
     "previous": "-132B"
   },
   {
-    "id": "ff-USD-202603121500-A50F04BA",
+    "id": "ff-USD-202603121500-65EA7F1D",
     "time_utc": "2026-03-12T15:00:00Z",
     "currency": "USD",
     "title": "FOMC Member Bowman Speaks",
@@ -590,7 +600,7 @@
     "previous": ""
   },
   {
-    "id": "ff-USD-202603121701-33BE89F4",
+    "id": "ff-USD-202603121701-8C576DA6",
     "time_utc": "2026-03-12T17:01:00Z",
     "currency": "USD",
     "title": "30-y Bond Auction",
@@ -600,7 +610,7 @@
     "previous": "4.75|2.7"
   },
   {
-    "id": "ff-NZD-202603122130-638A0C25",
+    "id": "ff-NZD-202603122130-9074CA4E",
     "time_utc": "2026-03-12T21:30:00Z",
     "currency": "NZD",
     "title": "BusinessNZ Manufacturing Index",
@@ -610,7 +620,7 @@
     "previous": "55.2"
   },
   {
-    "id": "ff-NZD-202603122145-50289CBD",
+    "id": "ff-NZD-202603122145-08CAF3B9",
     "time_utc": "2026-03-12T21:45:00Z",
     "currency": "NZD",
     "title": "Visitor Arrivals m/m",
@@ -620,7 +630,7 @@
     "previous": "1.7%"
   },
   {
-    "id": "ff-AUD-202603130359-A9C8EC0B",
+    "id": "ff-AUD-202603130359-CEDD301D",
     "time_utc": "2026-03-13T03:59:00Z",
     "currency": "AUD",
     "title": "NAB Quarterly Business Confidence",
@@ -630,17 +640,17 @@
     "previous": "2"
   },
   {
-    "id": "ff-EUR-202603130700-DECC918D",
+    "id": "ff-EUR-202603130700-164D8E8E",
     "time_utc": "2026-03-13T07:00:00Z",
     "currency": "EUR",
     "title": "German WPI m/m",
     "impact": 1,
     "actual": null,
-    "forecast": "0.4%",
+    "forecast": "0.3%",
     "previous": "0.9%"
   },
   {
-    "id": "ff-GBP-202603130700-C0AE9E8B",
+    "id": "ff-GBP-202603130700-0ED839A9",
     "time_utc": "2026-03-13T07:00:00Z",
     "currency": "GBP",
     "title": "GDP m/m",
@@ -650,7 +660,7 @@
     "previous": "0.1%"
   },
   {
-    "id": "ff-GBP-202603130700-0D89F362",
+    "id": "ff-GBP-202603130700-FD75B583",
     "time_utc": "2026-03-13T07:00:00Z",
     "currency": "GBP",
     "title": "Construction Output m/m",
@@ -660,17 +670,17 @@
     "previous": "-0.5%"
   },
   {
-    "id": "ff-GBP-202603130700-2DBC380D",
+    "id": "ff-GBP-202603130700-810ED0EB",
     "time_utc": "2026-03-13T07:00:00Z",
     "currency": "GBP",
     "title": "Goods Trade Balance",
     "impact": 1,
     "actual": null,
-    "forecast": "-22.1B",
+    "forecast": "-22.2B",
     "previous": "-22.7B"
   },
   {
-    "id": "ff-GBP-202603130700-BBC1B8E7",
+    "id": "ff-GBP-202603130700-C279C507",
     "time_utc": "2026-03-13T07:00:00Z",
     "currency": "GBP",
     "title": "Index of Services 3m/3m",
@@ -680,7 +690,7 @@
     "previous": "0.0%"
   },
   {
-    "id": "ff-GBP-202603130700-EC0CE988",
+    "id": "ff-GBP-202603130700-F11DEB53",
     "time_utc": "2026-03-13T07:00:00Z",
     "currency": "GBP",
     "title": "Industrial Production m/m",
@@ -690,17 +700,17 @@
     "previous": "-0.9%"
   },
   {
-    "id": "ff-GBP-202603130700-D7E617DF",
+    "id": "ff-GBP-202603130700-FD3B6932",
     "time_utc": "2026-03-13T07:00:00Z",
     "currency": "GBP",
     "title": "Manufacturing Production m/m",
     "impact": 1,
     "actual": null,
-    "forecast": "0.3%",
+    "forecast": "0.2%",
     "previous": "-0.5%"
   },
   {
-    "id": "ff-EUR-202603130745-3084CDC8",
+    "id": "ff-EUR-202603130745-7965E7B8",
     "time_utc": "2026-03-13T07:45:00Z",
     "currency": "EUR",
     "title": "French Final CPI m/m",
@@ -710,7 +720,7 @@
     "previous": "0.7%"
   },
   {
-    "id": "ff-EUR-202603130900-E68D2FE1",
+    "id": "ff-EUR-202603130900-FFC91BC4",
     "time_utc": "2026-03-13T09:00:00Z",
     "currency": "EUR",
     "title": "Italian Industrial Production m/m",
@@ -720,7 +730,7 @@
     "previous": "-0.4%"
   },
   {
-    "id": "ff-GBP-202603130930-39063E40",
+    "id": "ff-GBP-202603130930-B7D573D0",
     "time_utc": "2026-03-13T09:30:00Z",
     "currency": "GBP",
     "title": "Consumer Inflation Expectations",
@@ -730,27 +740,27 @@
     "previous": "3.5%"
   },
   {
-    "id": "ff-EUR-202603131000-EC0CE988",
+    "id": "ff-EUR-202603131000-F11DEB53",
     "time_utc": "2026-03-13T10:00:00Z",
     "currency": "EUR",
     "title": "Industrial Production m/m",
     "impact": 1,
     "actual": null,
-    "forecast": "0.5%",
+    "forecast": "0.6%",
     "previous": "-1.4%"
   },
   {
-    "id": "ff-CAD-202603131230-3658B36E",
+    "id": "ff-CAD-202603131230-76763A45",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "CAD",
     "title": "Employment Change",
     "impact": 3,
     "actual": null,
-    "forecast": "11.1K",
+    "forecast": "10.3K",
     "previous": "-24.8K"
   },
   {
-    "id": "ff-CAD-202603131230-AF7697F7",
+    "id": "ff-CAD-202603131230-15D8308E",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "CAD",
     "title": "Unemployment Rate",
@@ -760,7 +770,7 @@
     "previous": "6.5%"
   },
   {
-    "id": "ff-CAD-202603131230-74DEA738",
+    "id": "ff-CAD-202603131230-539BD2E6",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "CAD",
     "title": "Capacity Utilization Rate",
@@ -770,17 +780,17 @@
     "previous": "78.5%"
   },
   {
-    "id": "ff-CAD-202603131230-3D35ACA4",
+    "id": "ff-CAD-202603131230-AF31F748",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "CAD",
     "title": "Manufacturing Sales m/m",
     "impact": 1,
     "actual": null,
-    "forecast": "-3.2%",
+    "forecast": "-3.3%",
     "previous": "0.6%"
   },
   {
-    "id": "ff-USD-202603131230-7D9BBA2D",
+    "id": "ff-USD-202603131230-7F1BF885",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "USD",
     "title": "Core PCE Price Index m/m",
@@ -790,37 +800,37 @@
     "previous": "0.4%"
   },
   {
-    "id": "ff-USD-202603131230-E31970DB",
+    "id": "ff-USD-202603131230-52C3C1D7",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "USD",
     "title": "Prelim GDP q/q",
     "impact": 3,
     "actual": null,
-    "forecast": "1.4%",
+    "forecast": "1.5%",
     "previous": "1.4%"
   },
   {
-    "id": "ff-USD-202603131230-DECFD49A",
+    "id": "ff-USD-202603131230-99E98CDC",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "USD",
     "title": "Core Durable Goods Orders m/m",
     "impact": 2,
     "actual": null,
-    "forecast": "0.4%",
+    "forecast": "0.5%",
     "previous": "0.9%"
   },
   {
-    "id": "ff-USD-202603131230-C642EDA8",
+    "id": "ff-USD-202603131230-3E009568",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "USD",
     "title": "Durable Goods Orders m/m",
     "impact": 2,
     "actual": null,
-    "forecast": "0.5%",
+    "forecast": "1.1%",
     "previous": "-1.4%"
   },
   {
-    "id": "ff-USD-202603131230-95A53104",
+    "id": "ff-USD-202603131230-AEE8BBE0",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "USD",
     "title": "Prelim GDP Price Index q/q",
@@ -830,17 +840,17 @@
     "previous": "3.6%"
   },
   {
-    "id": "ff-USD-202603131230-2EF77D17",
+    "id": "ff-USD-202603131230-31D17BE0",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "USD",
     "title": "Personal Income m/m",
     "impact": 1,
     "actual": null,
-    "forecast": "0.4%",
+    "forecast": "0.5%",
     "previous": "0.3%"
   },
   {
-    "id": "ff-USD-202603131230-5C40F676",
+    "id": "ff-USD-202603131230-B77C8A97",
     "time_utc": "2026-03-13T12:30:00Z",
     "currency": "USD",
     "title": "Personal Spending m/m",
@@ -850,27 +860,27 @@
     "previous": "0.4%"
   },
   {
-    "id": "ff-USD-202603131400-36E8E98B",
+    "id": "ff-USD-202603131400-03A3EF29",
     "time_utc": "2026-03-13T14:00:00Z",
     "currency": "USD",
     "title": "JOLTS Job Openings",
     "impact": 3,
     "actual": null,
-    "forecast": "6.84M",
+    "forecast": "6.76M",
     "previous": "6.54M"
   },
   {
-    "id": "ff-USD-202603131400-FF3D97E0",
+    "id": "ff-USD-202603131400-54F69C53",
     "time_utc": "2026-03-13T14:00:00Z",
     "currency": "USD",
     "title": "Prelim UoM Consumer Sentiment",
     "impact": 2,
     "actual": null,
-    "forecast": "55.9",
+    "forecast": "55.0",
     "previous": "57.3"
   },
   {
-    "id": "ff-USD-202603131400-12042529",
+    "id": "ff-USD-202603131400-306543E1",
     "time_utc": "2026-03-13T14:00:00Z",
     "currency": "USD",
     "title": "Prelim UoM Inflation Expectations",
