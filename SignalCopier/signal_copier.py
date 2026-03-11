@@ -1064,32 +1064,13 @@ async def main():
                     log.warning("SKIPPED: parse_entry2_update failed")
 
             elif mtype == "TP_HIT":
-                m = re.search(r"#(\w+USDT)", text)
-                if m:
-                    sym = m.group(1)
-                    pos = executor.positions.get(sym)
-                    if pos and pos.sl_order_id:
-                        # Позиция открыта, SL есть — нормальное закрытие по TP
-                        await executor.on_closed(sym, "TP_HIT")
-                    elif pos:
-                        # ENTRY1 ещё не заполнен — проверяем биржу
-                        exsym = executor.exchange_symbol(pos.signal)
-                        real_size = await executor._fetch_position_size(exsym, pos.signal.direction)
-                        if real_size > 0:
-                            # Позиция есть, SL просто ещё не выставлен — поллинг разберётся
-                            log.info(f"[{sym}] TP_HIT но позиция уже открыта ({real_size}) — ждём поллинга")
-                        else:
-                            # Позиции нет — канал закрыл до нашего входа, отменяем ENTRY1
-                            log.info(f"[{sym}] TP_HIT из канала, позиции нет — отменяем вход")
-                            await executor.on_closed(sym, "TP_HIT_NO_POSITION")
+                # Игнорируем — поллинг сам увидит закрытие позиции на бирже.
+                # Это исключает ложные закрытия когда канал пишет про встречную позицию.
+                log.debug(f"TP_HIT из канала — игнорируем, поллинг разберётся")
 
             elif mtype == "SL_HIT":
-                m = re.search(r"#(\w+USDT)", text)
-                if m:
-                    _sl_sym = m.group(1)
-                    if _sl_sym in executor.positions:
-                        executor.stop_guard.register_stop()
-                    await executor.on_closed(_sl_sym, "SL_HIT")
+                # Аналогично — не закрываем по сообщению канала, только поллинг.
+                log.debug(f"SL_HIT из канала — игнорируем, поллинг разберётся")
 
         except Exception as e:
             log.error(f"Handler error: {e}", exc_info=True)

@@ -27,7 +27,7 @@ load_dotenv()
 
 TG_API_ID       = int(os.environ["TG_API_ID"])
 TG_API_HASH     = os.environ["TG_API_HASH"]
-TG_SESSION_FILE = os.environ.get("TG_SESSION", "cryptonus_session")
+TG_SESSION_FILE = os.environ.get("TG_SESSION", "scan_session")
 CHANNEL         = "cryptoninjas_trading_ann"
 CACHE_FILE      = "history_cache_ninjas.json"
 
@@ -97,7 +97,7 @@ def parse_signal(msg_id: int, date: datetime, text: str) -> Optional[Signal]:
     """Пытается распарсить сообщение как новый сигнал."""
     # Требуем 🟢/🔴 и LONG/SHORT в первой строке
     first = text.split("\n")[0]
-    m = re.match(r'[🟢🔴]\s*(LONG|SHORT)\b', first, re.I)
+    m = re.match(r'[🟢🔴]\s*(?:SWING\s+)?(LONG|SHORT)\b', first, re.I)
     if not m:
         return None
 
@@ -159,6 +159,9 @@ def parse_signal(msg_id: int, date: datetime, text: str) -> Optional[Signal]:
     if entry1 is None or sl is None:
         return None
     if entry1 == sl:
+        return None
+    # Фильтр мусора: SL дальше 50% от entry
+    if abs(entry1 - sl) / entry1 > 0.5:
         return None
 
     # TP
@@ -232,9 +235,9 @@ def apply_update(sig: Signal, text: str):
 # Фетч истории
 # ---------------------------------------------------------------------------
 
-async def fetch_history(days: int, limit: int) -> list[dict]:
+async def fetch_history(days: int, limit: int, session: str = None) -> list[dict]:
     from telethon import TelegramClient
-    client = TelegramClient(TG_SESSION_FILE, TG_API_ID, TG_API_HASH)
+    client = TelegramClient(session or TG_SESSION_FILE, TG_API_ID, TG_API_HASH)
     await client.start()
 
     after = datetime.now(timezone.utc) - timedelta(days=days)
@@ -400,7 +403,7 @@ async def async_main(args):
         messages = json.loads(Path(CACHE_FILE).read_text(encoding="utf-8"))
         print(f"Кэш: {len(messages)} сообщений")
     else:
-        messages = await fetch_history(days=args.days, limit=args.limit)
+        messages = await fetch_history(days=args.days, limit=args.limit, session=args.session)
 
     signals = reconstruct(messages)
 
@@ -436,5 +439,6 @@ if __name__ == "__main__":
     p.add_argument("--days",     type=int,  default=60)
     p.add_argument("--limit",    type=int,  default=1000)
     p.add_argument("--no-fetch", action="store_true")
+    p.add_argument("--session",  type=str, default=None, help="TG session file")
     p.add_argument("--symbol",   type=str,  default=None)
     asyncio.run(async_main(p.parse_args()))
