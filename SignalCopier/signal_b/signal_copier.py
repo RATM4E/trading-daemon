@@ -638,34 +638,13 @@ class BaseExecutor(ABC):
                 sig = pos.signal
                 sym2 = self.exchange_symbol(sig)
                 cs = "sell" if sig.direction == "LONG" else "buy"
-                pos_side = "long" if sig.direction == "LONG" else "short"
-                # Проверяем нет ли уже TP на бирже перед размещением
-                existing_tp = None
-                try:
-                    open_orders = await self.ex.fetch_open_orders(sym2)
-                    for o in open_orders:
-                        if o.get("side") != cs:
-                            continue
-                        info = o.get("info", {})
-                        is_tp = (info.get("posSide", "").lower() == pos_side or
-                                 o.get("reduceOnly") or info.get("reduceOnly"))
-                        if is_tp and o.get("type") in ("limit", "LIMIT"):
-                            existing_tp = o.get("id")
-                            break
-                except Exception:
-                    pass
-                if existing_tp:
-                    log.info(f"[{symbol}] TP уже есть на бирже ({existing_tp}) — синхронизируем state")
-                    pos.tp_order_ids = [existing_tp]
+                log.info(f"[{symbol}] Retry TP...")
+                tp_ids = await self._place_tp_orders(sym2, sig, pos.total_lot, cs,
+                                                     sig.tp1, sig.tp2, sig.tp3)
+                if tp_ids:
+                    pos.tp_order_ids = tp_ids
                     save_state(self.positions)
-                else:
-                    log.info(f"[{symbol}] Retry TP...")
-                    tp_ids = await self._place_tp_orders(sym2, sig, pos.total_lot, cs,
-                                                         sig.tp1, sig.tp2, sig.tp3)
-                    if tp_ids:
-                        pos.tp_order_ids = tp_ids
-                        save_state(self.positions)
-                        log.info(f"[{symbol}] TP выставлен (retry): {tp_ids}")
+                    log.info(f"[{symbol}] TP выставлен (retry): {tp_ids}")
 
             # --- После заполнения ENTRY1: следим за позицией ---
             elif entry1_filled and pos.sl_order_id:
@@ -863,16 +842,8 @@ class OKXExecutor(BaseExecutor):
                 try:
                     open_orders = await self.ex.fetch_open_orders(raw_sym)
                     close_side  = "sell" if direction == "LONG" else "buy"
-                    pos_side    = "long" if direction == "LONG" else "short"
                     for o in open_orders:
-                        if o.get("side") != close_side:
-                            continue
-                        info = o.get("info", {})
-                        # OKX: posSide совпадает; Binance: reduceOnly=True
-                        is_tp = (info.get("posSide", "").lower() == pos_side or
-                                 o.get("reduceOnly") or
-                                 info.get("reduceOnly"))
-                        if is_tp and o.get("type") in ("limit", "LIMIT"):
+                        if o.get("side") == close_side and o.get("reduceOnly"):
                             tp_price = float(o.get("price") or 0)
                             tp_id    = o.get("id")
                             break
@@ -1183,16 +1154,8 @@ class BinanceExecutor(BaseExecutor):
                 try:
                     open_orders = await self.ex.fetch_open_orders(raw_sym)
                     close_side  = "sell" if direction == "LONG" else "buy"
-                    pos_side    = "long" if direction == "LONG" else "short"
                     for o in open_orders:
-                        if o.get("side") != close_side:
-                            continue
-                        info = o.get("info", {})
-                        # OKX: posSide совпадает; Binance: reduceOnly=True
-                        is_tp = (info.get("posSide", "").lower() == pos_side or
-                                 o.get("reduceOnly") or
-                                 info.get("reduceOnly"))
-                        if is_tp and o.get("type") in ("limit", "LIMIT"):
+                        if o.get("side") == close_side and o.get("reduceOnly"):
                             tp_price = float(o.get("price") or 0)
                             tp_id    = o.get("id")
                             break
