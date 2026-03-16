@@ -33,6 +33,9 @@ public class BacktestEngine
     private readonly StateManager _liveState;     // only for profile/sizing reads
     private readonly ILogger _log;
 
+    /// <summary>Cache of MT5 CalcProfit results per symbol+direction to avoid redundant calls.</summary>
+    private readonly Dictionary<string, double> _loss1LotCache = new();
+
     private BacktestExecutor? _executor;
     private StrategyProcess? _process;
     private bool _isRunning;
@@ -374,7 +377,7 @@ public class BacktestEngine
     //  Action Handlers
     // ===================================================================
 
-    private Task HandleEnterAsync(
+    private async Task HandleEnterAsync(
         StrategyAction action, long barTime, long nextBarTime,
         Dictionary<string, List<Bar>> allBars,
         Dictionary<string, InstrumentCard> cards,
@@ -389,12 +392,24 @@ public class BacktestEngine
         // Fill price = next bar's Open (simulates market order filled on next candle)
         var nextBar = GetNextBar(allBars, symbol, nextBarTime);
         double fillPrice = nextBar?.Open ?? currentBars.GetValueOrDefault(symbol)?.Close ?? 0;
-        if (fillPrice <= 0) return Task.CompletedTask;
+        if (fillPrice <= 0) return;
+
+        // Recalculate SL from actual fill using sl_dist from signal_data.
+        // strategy.py emits sl_price relative to entry_est (b_high/b_low),
+        // but actual fill = bar[i+1].Open which may differ significantly (indices, gaps).
+        // sl_dist = atr * atr_mult is fill-invariant, so reanchor to fillPrice.
+        double slDist = ParseSlDist(action.SignalData);
+        if (slDist > 0)
+        {
+            slPrice = action.Direction!.ToUpperInvariant() == "LONG"
+                ? fillPrice - slDist
+                : fillPrice + slDist;
+        }
 
         // Get instrument card
-        if (!cards.TryGetValue(symbol, out var card)) return Task.CompletedTask;
+        if (!cards.TryGetValue(symbol, out var card)) return;
 
-        // Lot calculation (tick math fallback — no MT5 CalcProfit in backtest)
+        // Lot calculation
         var profile = _liveState.GetProfile(_btConfig.TerminalId);
         double riskMoney;
         if (profile != null)
@@ -417,19 +432,61 @@ public class BacktestEngine
             riskMoney = _executor!.Balance * 0.01;
         }
 
+        // MT5 CalcProfit for accurate loss1Lot (critical for indices, metals, crypto).
+        // Cached by symbol+direction to avoid redundant MT5 calls across the replay loop.
+        double loss1Lot = 0;
+        var cacheKey = $"{symbol}:{direction}";
+        if (!_loss1LotCache.TryGetValue(cacheKey, out loss1Lot))
+        {
+            try
+            {
+                var profit = await _connector.CalcProfitAsync(
+                    _btConfig.TerminalId, symbol, direction, 1.0, fillPrice, slPrice, ct);
+                if (profit.HasValue && profit.Value != 0)
+                    loss1Lot = Math.Abs(profit.Value);
+            }
+            catch { }
+            _loss1LotCache[cacheKey] = loss1Lot;
+        }
+
         var lotResult = LotCalculator.Calculate(
             entryPrice: fillPrice,
             slPrice: slPrice,
             riskMoney: riskMoney,
-            card: card);
+            card: card,
+            loss1Lot: loss1Lot);
 
         if (!lotResult.Allowed || lotResult.Lot <= 0)
         {
             _executor.RecordBlockedSignal(action, "LOT_CALC", lotResult.Reason ?? "Lot=0", barTime, fillPrice);
-            return Task.CompletedTask;
+            return;
         }
 
-        // Risk gates (lightweight: skip G0 pause, G5/G6 margin, G7 news for now)
+        // G5: Margin Per Trade
+        // Uses card.Margin1Lot from MT5 (cached at run start). Reduces lot if exceeded.
+        if (_btConfig.MaxMarginPct > 0 && card.Margin1Lot > 0)
+        {
+            double maxMargin    = _executor.Balance * _btConfig.MaxMarginPct / 100.0;
+            double marginEst    = lotResult.Lot * card.Margin1Lot;
+            if (marginEst > maxMargin)
+            {
+                double volStep   = card.VolumeStep > 0 ? card.VolumeStep : 0.01;
+                double volMin    = card.VolumeMin  > 0 ? card.VolumeMin  : 0.01;
+                double reduced   = Math.Floor((maxMargin / card.Margin1Lot) / volStep) * volStep;
+                reduced = Math.Round(reduced, 8);
+                if (reduced < volMin)
+                {
+                    _executor.RecordBlockedSignal(action, "G5_MARGIN",
+                        $"Margin-reduced lot {reduced:F4} < volume_min {volMin}. " +
+                        $"maxMargin=${maxMargin:F2}, margin1Lot=${card.Margin1Lot:F2}",
+                        barTime, fillPrice);
+                    return;
+                }
+                lotResult.Lot = reduced;
+            }
+        }
+
+        // Risk gates
         // G11: Same combo check (multi-combo) or same symbol (single-combo fallback)
         var signalComboKey = ParseComboKey(action.SignalData);
         if (signalComboKey != null)
@@ -442,7 +499,7 @@ public class BacktestEngine
                 _executor.RecordBlockedSignal(action, "G11_SAME_COMBO",
                     $"Already has {existingCombo.Direction} {existingCombo.Symbol} ({signalComboKey})",
                     barTime, fillPrice);
-                return Task.CompletedTask;
+                return;
             }
         }
         else
@@ -454,7 +511,7 @@ public class BacktestEngine
             {
                 _executor.RecordBlockedSignal(action, "G11_SAME_SYMBOL",
                     $"Already has {existingPos.Direction} {symbol}", barTime, fillPrice);
-                return Task.CompletedTask;
+                return;
             }
         }
 
@@ -467,7 +524,7 @@ public class BacktestEngine
             {
                 _executor.RecordBlockedSignal(action, "G12_RCAP",
                     $"Daily R={dailyR:F2} >= cap {_btConfig.RCap.Value}", barTime, fillPrice);
-                return Task.CompletedTask;
+                return;
             }
         }
 
@@ -477,7 +534,6 @@ public class BacktestEngine
             _btConfig.Strategy, _btConfig.Magic);
         if (pos != null)
             newTickets.Add(pos.Ticket);
-        return Task.CompletedTask;
     }
 
     private void HandleEnterPending(
@@ -730,6 +786,20 @@ public class BacktestEngine
         if (!currentBars.TryGetValue(pos.Symbol, out var bar)) return 0;
         double diff = pos.Direction == "BUY" ? bar.Close - pos.PriceOpen : pos.PriceOpen - bar.Close;
         return diff * pos.Volume * 100000; // rough estimate for display only
+    }
+
+    private static double ParseSlDist(string? signalData)
+    {
+        if (string.IsNullOrEmpty(signalData)) return 0;
+        try
+        {
+            using var doc = JsonDocument.Parse(signalData);
+            if (doc.RootElement.TryGetProperty("sl_dist", out var p)
+                && p.ValueKind == JsonValueKind.Number)
+                return p.GetDouble();
+        }
+        catch { }
+        return 0;
     }
 
     private static int FindFreePort()

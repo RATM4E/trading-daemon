@@ -508,6 +508,8 @@ public partial class DashboardServer
         var toTs = root.GetProperty("to_ts").GetInt64();
         var deposit = root.TryGetProperty("deposit", out var depProp) ? depProp.GetDouble() : 100000;
         var commission = root.TryGetProperty("commission", out var comProp) ? comProp.GetDouble() : 7.0;
+        var leverage = root.TryGetProperty("leverage", out var levProp) ? levProp.GetDouble() : 100.0;
+        var maxMarginPct = leverage > 0 ? Math.Round(100.0 / leverage, 4) : 0;
         var timeframe = root.TryGetProperty("timeframe", out var tfProp2) ? tfProp2.GetString() ?? "M30" : "M30";
 
         // Parse symbols and timeframes from strategy config
@@ -651,6 +653,7 @@ public partial class DashboardServer
             HistoryBars = historyBars,
             Source = terminal,
             SizingFactors = sizingFactors,
+            MaxMarginPct = maxMarginPct,
         };
 
         // Start backtest in background

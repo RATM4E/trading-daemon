@@ -376,6 +376,18 @@ public class Scheduler
         double currentPrice = lastBars is { Count: > 0 } ? lastBars[^1].Close : 0;
         if (currentPrice <= 0) { _log.Error($"{tag} No price for {symbol}"); return; }
 
+        // Recalculate SL from actual fill using sl_dist from signal_data.
+        // strategy emits sl_price relative to entry_est (b_high/b_low),
+        // but actual fill = market price (currentPrice). sl_dist = atr * atr_mult
+        // is fill-invariant, so reanchor SL to currentPrice.
+        double slDist = ParseSlDist(action.SignalData);
+        if (slDist > 0)
+        {
+            slPrice = direction == "LONG"
+                ? currentPrice - slDist
+                : currentPrice + slDist;
+        }
+
         // Get authoritative loss-per-1-lot from MT5 (handles cross-pairs, JPY, metals, indices)
         double loss1Lot = 0;
         try
@@ -1344,5 +1356,19 @@ public class Scheduler
         {
             return DateTime.UtcNow.ToString("yyyy-MM-dd");
         }
+    }
+
+    private static double ParseSlDist(string? signalData)
+    {
+        if (string.IsNullOrEmpty(signalData)) return 0;
+        try
+        {
+            using var doc = JsonDocument.Parse(signalData);
+            if (doc.RootElement.TryGetProperty("sl_dist", out var p)
+                && p.ValueKind == JsonValueKind.Number)
+                return p.GetDouble();
+        }
+        catch { }
+        return 0;
     }
 }

@@ -631,6 +631,9 @@ public class BacktestConfig
 
     /// <summary>Per-symbol risk factors from sizing config. Overrides strategy's own sizing.</summary>
     public Dictionary<string, double> SizingFactors { get; set; } = new();
+
+    /// <summary>Max margin per trade as % of balance (G5). 0 = disabled. E.g. 1.0 = 1% for The5ers 1:100.</summary>
+    public double MaxMarginPct { get; set; } = 0;
 }
 
 /// <summary>Complete result of a backtest run.</summary>
